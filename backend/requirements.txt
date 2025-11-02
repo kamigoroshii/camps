@@ -1,28 +1,27 @@
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-pydantic==2.5.3
-pydantic-settings==2.1.0
-python-multipart==0.0.6
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-python-dotenv==1.0.0
+# fastapi==0.109.0
+# uvicorn[standard]==0.27.0
+# pydantic==2.5.3
+# pydantic-settings==2.1.0
+# python-multipart==0.0.6
+# python-jose[cryptography]==3.3.0
+# passlib[bcrypt]==1.7.4
+# python-dotenv==1.0.0
 
-# Database
-sqlalchemy==2.0.25
-alembic==1.13.1
-asyncpg==0.29.0
-psycopg2-binary==2.9.11
-pymongo==4.6.1
-motor==3.3.2
+# # Database
+# sqlalchemy==2.0.25
+# alembic==1.13.1
+# asyncpg==0.29.0
+# psycopg2-binary==2.9.11
+# pymongo==4.6.1
+# motor==3.3.2
 
-# Redis & Caching
-redis==5.0.1
-hiredis==2.3.2
-celery==5.3.6
+# # Redis & Caching
+# redis==5.0.1
+# hiredis==2.3.2
+# celery==5.3.6
 
-# Authentication
-python-ldap==3.4.4
-python-saml==2.13.0
+ldap3==2.9.1
+# python-saml==2.13.0
 authlib==1.3.0
 
 # Email & Notifications
@@ -43,6 +42,10 @@ langchain-openai==0.0.5
 transformers==4.37.0
 sentence-transformers==2.3.1
 torch==2.9.0
+qdrant-client==1.7.0
+google-generativeai==0.3.2
+python-docx==1.1.0
+openpyxl==3.1.2
 
 # Utilities
 httpx==0.26.0

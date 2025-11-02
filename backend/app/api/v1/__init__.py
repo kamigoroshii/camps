@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import auth, users, requests, documents, notifications, dashboard
+from app.api.v1.endpoints import auth, users, requests, documents, notifications, dashboard, rag
 
 api_router = APIRouter()
 
@@ -10,3 +10,4 @@ api_router.include_router(requests.router, prefix="/requests", tags=["Service Re
 api_router.include_router(documents.router, prefix="/documents", tags=["Documents"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
+api_router.include_router(rag.router, prefix="/rag", tags=["RAG"])

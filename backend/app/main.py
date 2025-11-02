@@ -10,6 +10,8 @@ import time
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.api.v1 import api_router
+from app.services.rag_service import rag_service
+from app.services.vector_store import vector_store
 
 # Configure logging
 logging.basicConfig(
@@ -26,10 +28,22 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Campus Portal API...")
     await init_db()
     logger.info("Database initialized")
+    
+    # Initialize RAG services
+    try:
+        logger.info("Initializing RAG services...")
+        await rag_service.initialize()
+        logger.info("RAG services initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize RAG services: {e}")
+        logger.warning("Continuing without RAG functionality")
+    
     yield
+    
     # Shutdown
     logger.info("Shutting down Campus Portal API...")
     await close_db()
+    await vector_store.close()
     logger.info("Database connections closed")
 
 

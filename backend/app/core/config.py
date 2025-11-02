@@ -100,6 +100,22 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     HUGGINGFACE_API_KEY: str = ""
     AI_MODEL_NAME: str = "gpt-3.5-turbo"
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+    
+    # RAG Configuration
+    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
+    QDRANT_HOST: str = "localhost"
+    QDRANT_PORT: int = 6333
+    QDRANT_COLLECTION: str = "campus_documents"
+    CHUNK_SIZE: int = 1000
+    CHUNK_OVERLAP: int = 200
+    MAX_CHUNKS_PER_FILE: int = 200
+    MAX_CONTEXT_CHUNKS: int = 5
+    
+    @property
+    def QDRANT_URL(self) -> str:
+        return f"http://{self.QDRANT_HOST}:{self.QDRANT_PORT}"
     
     # Feature Flags
     ENABLE_AI_ROUTING: bool = True
