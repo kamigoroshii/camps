@@ -40,6 +40,8 @@ import {
   DirectionsBus as BusIcon,
   ContactMail as MemoIcon,
   History as HistoryIcon,
+  Chat as ChatIcon,
+  VerifiedUser as VerificationIcon,
 } from '@mui/icons-material'
 import { useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
@@ -76,10 +78,18 @@ const navigationItems: NavItem[] = [
       { title: 'Request History', path: '/requests', icon: <HistoryIcon /> },
     ]
   },
-  { title: 'Scholarship Department', path: '/scholarships', icon: <ScholarshipIcon /> },
+  { 
+    title: 'Scholarship Department', 
+    path: '/scholarships', 
+    icon: <ScholarshipIcon />,
+    subItems: [
+      { title: 'Scholarship Applications', path: '/scholarships', icon: <ScholarshipIcon /> },
+      { title: 'Document Verification', path: '/scholarship-verification', icon: <VerificationIcon /> },
+    ]
+  },
   { title: 'CAMS Department', path: '/cams', icon: <CamsIcon /> },
+  { title: 'Chat', path: '/chat', icon: <ChatIcon /> },
   { title: 'Notifications', path: '/notifications', icon: <NotificationsIcon /> },
-  { title: 'Profile', path: '/profile', icon: <PersonIcon /> },
   { title: 'Admin Dashboard', path: '/admin', icon: <SettingsIcon /> },
 ]
 
@@ -167,7 +177,7 @@ export default function Layout() {
         color: palette.white,
       }}
     >
-      {/* Sidebar Header */}
+      {/* Sidebar Header with Collapse Button */}
       <Box
         sx={{
           p: 2,
@@ -179,7 +189,46 @@ export default function Layout() {
         }}
       >
         {!collapsed && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Avatar
+                sx={{
+                  bgcolor: palette.white,
+                  color: palette.primary,
+                  width: 36,
+                  height: 36,
+                  fontWeight: 700,
+                  fontSize: '0.875rem',
+                }}
+              >
+                CP
+              </Avatar>
+              <Typography variant="h6" sx={{ fontWeight: 700, color: palette.white, fontSize: '1.1rem' }}>
+                Campus Portal
+              </Typography>
+            </Box>
+            {/* Collapse Button - Desktop Only */}
+            {!isMobile && (
+              <IconButton
+                onClick={handleSidebarToggle}
+                sx={{
+                  color: palette.white,
+                  border: `1px solid rgba(255, 255, 255, 0.2)`,
+                  borderRadius: 2,
+                  p: 0.5,
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.05)',
+                  },
+                }}
+              >
+                <ChevronLeftIcon />
+              </IconButton>
+            )}
+          </>
+        )}
+        
+        {collapsed && (
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
             <Avatar
               sx={{
                 bgcolor: palette.white,
@@ -192,104 +241,27 @@ export default function Layout() {
             >
               CP
             </Avatar>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: palette.white, fontSize: '1.1rem' }}>
-              Campus Portal
-            </Typography>
+            {/* Collapse Button - Desktop Only */}
+            {!isMobile && (
+              <IconButton
+                onClick={handleSidebarToggle}
+                sx={{
+                  color: palette.white,
+                  border: `1px solid rgba(255, 255, 255, 0.2)`,
+                  borderRadius: 2,
+                  p: 0.5,
+                  mt: 0.5,
+                  '&:hover': {
+                    bgcolor: 'rgba(255, 255, 255, 0.05)',
+                  },
+                }}
+              >
+                <ChevronRightIcon />
+              </IconButton>
+            )}
           </Box>
-        )}
-        
-        {collapsed && (
-          <Avatar
-            sx={{
-              bgcolor: palette.white,
-              color: palette.primary,
-              width: 36,
-              height: 36,
-              fontWeight: 700,
-              fontSize: '0.875rem',
-            }}
-          >
-            CP
-          </Avatar>
         )}
       </Box>
-
-      {/* User Profile Section */}
-      {!collapsed && (
-        <Box 
-          sx={{ 
-            p: 2, 
-            bgcolor: 'rgba(0, 0, 0, 0.1)',
-            borderBottom: `1px solid rgba(255, 255, 255, 0.1)`,
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Avatar
-              sx={{
-                bgcolor: palette.primaryLight,
-                color: palette.white,
-                width: 48,
-                height: 48,
-                fontWeight: 600,
-                fontSize: '1.1rem',
-              }}
-            >
-              {getInitials(user?.full_name)}
-            </Avatar>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography 
-                variant="subtitle1" 
-                sx={{ 
-                  fontWeight: 600, 
-                  color: palette.white,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {user?.full_name || 'Guest User'}
-              </Typography>
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  color: 'rgba(255, 255, 255, 0.7)',
-                  display: 'block',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {user?.email || 'guest@example.com'}
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-      )}
-
-      {collapsed && (
-        <Box 
-          sx={{ 
-            p: 1.5,
-            display: 'flex',
-            justifyContent: 'center',
-            bgcolor: 'rgba(0, 0, 0, 0.1)',
-            borderBottom: `1px solid rgba(255, 255, 255, 0.1)`,
-          }}
-        >
-          <Avatar
-            sx={{
-              bgcolor: palette.primaryLight,
-              color: palette.white,
-              width: 40,
-              height: 40,
-              fontWeight: 600,
-              fontSize: '1rem',
-            }}
-          >
-            {getInitials(user?.full_name)}
-          </Avatar>
-        </Box>
-      )}
 
       {/* Main Navigation */}
       <Box sx={{ flexGrow: 1, overflowY: 'auto', overflowX: 'hidden', py: 2 }}>
@@ -429,31 +401,50 @@ export default function Layout() {
         </List>
       </Box>
 
-      {/* Collapse Toggle Button - Desktop Only */}
-      {!isMobile && (
-        <Box 
-          sx={{ 
-            p: 1,
-            borderTop: `1px solid rgba(255, 255, 255, 0.1)`,
-            display: 'flex',
-            justifyContent: 'center',
-          }}
-        >
-          <IconButton
-            onClick={handleSidebarToggle}
+      {/* Profile Section - Bottom */}
+      <Box 
+        sx={{ 
+          p: 1,
+          borderTop: `1px solid rgba(255, 255, 255, 0.1)`,
+        }}
+      >
+        <Tooltip title={collapsed ? 'Profile' : ''} placement="right" arrow>
+          <ListItemButton
+            onClick={() => handleNavigation('/profile')}
             sx={{
-              color: palette.white,
-              border: `1px solid rgba(255, 255, 255, 0.2)`,
+              mx: collapsed ? 0.5 : 1,
               borderRadius: 2,
-              '&:hover': {
-                bgcolor: 'rgba(255, 255, 255, 0.05)',
+              minHeight: 48,
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              px: collapsed ? 1 : 2,
+              bgcolor: isActive('/profile') ? palette.primaryLight : 'transparent',
+              color: palette.white,
+              '& .MuiListItemIcon-root': {
+                color: palette.white,
               },
             }}
           >
-            {collapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
-          </IconButton>
-        </Box>
-      )}
+            <ListItemIcon
+              sx={{
+                minWidth: collapsed ? 'auto' : 40,
+                color: palette.white,
+                justifyContent: 'center',
+              }}
+            >
+              <PersonIcon />
+            </ListItemIcon>
+            {!collapsed && (
+              <ListItemText
+                primary="Profile"
+                primaryTypographyProps={{
+                  fontWeight: isActive('/profile') ? 700 : 500,
+                  fontSize: '0.95rem',
+                }}
+              />
+            )}
+          </ListItemButton>
+        </Tooltip>
+      </Box>
     </Box>
   )
 

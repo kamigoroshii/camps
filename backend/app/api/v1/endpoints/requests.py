@@ -37,6 +37,43 @@ def generate_request_number() -> str:
     return f"REQ-{timestamp}-{unique_id}"
 
 
+async def get_or_create_sql_user(mongo_user_id: str, mongo_user_data: dict, db: AsyncSession) -> int:
+    """Get or create SQL user from MongoDB user data"""
+    # Try to find existing user by email
+    result = await db.execute(
+        select(User).where(User.email == mongo_user_data.get("email"))
+    )
+    sql_user = result.scalar_one_or_none()
+    
+    if sql_user:
+        return sql_user.id
+    
+    # Create new SQL user
+    from app.models import UserRole, UserStatus
+    
+    role_map = {
+        "admin": UserRole.ADMIN,
+        "super_admin": UserRole.SUPER_ADMIN,
+        "faculty": UserRole.FACULTY,
+        "student": UserRole.STUDENT
+    }
+    
+    sql_user = User(
+        email=mongo_user_data.get("email"),
+        username=mongo_user_data.get("username", mongo_user_data.get("email")),
+        full_name=mongo_user_data.get("full_name", ""),
+        role=role_map.get(mongo_user_data.get("role"), UserRole.STUDENT),
+        status=UserStatus.ACTIVE,
+        is_verified=True
+    )
+    
+    db.add(sql_user)
+    await db.commit()
+    await db.refresh(sql_user)
+    
+    return sql_user.id
+
+
 @router.post("", response_model=ServiceRequestResponse, status_code=status.HTTP_201_CREATED)
 async def create_request(
     request_data: ServiceRequestCreate,
@@ -45,7 +82,8 @@ async def create_request(
 ):
     """Create a new service request"""
     
-    user_id = int(current_user.get("sub"))
+    mongo_user_id = current_user.get("sub")  # MongoDB ObjectId as string
+    user_id = await get_or_create_sql_user(mongo_user_id, current_user, db)
     
     # Calculate SLA due date
     sla_hours = settings.URGENT_SLA_HOURS if request_data.priority == Priority.URGENT else settings.DEFAULT_SLA_HOURS
@@ -102,12 +140,15 @@ async def list_requests(
     request_type: Optional[RequestType] = None,
     priority: Optional[Priority] = None,
     search: Optional[str] = None,
+    sort: Optional[str] = Query("created_at"),
+    order: Optional[str] = Query("desc"),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """List service requests with pagination and filters"""
     
-    user_id = int(current_user.get("sub"))
+    mongo_user_id = current_user.get("sub")  # MongoDB ObjectId as string
+    user_id = await get_or_create_sql_user(mongo_user_id, current_user, db)
     user_role = current_user.get("role")
     
     # Build query based on role
@@ -169,7 +210,8 @@ async def get_request(
 ):
     """Get a specific service request"""
     
-    user_id = int(current_user.get("sub"))
+    mongo_user_id = current_user.get("sub")  # MongoDB ObjectId as string
+    user_id = await get_or_create_sql_user(mongo_user_id, current_user, db)
     user_role = current_user.get("role")
     
     result = await db.execute(
@@ -207,7 +249,8 @@ async def update_request(
 ):
     """Update a service request"""
     
-    user_id = int(current_user.get("sub"))
+    mongo_user_id = current_user.get("sub")  # MongoDB ObjectId as string
+    user_id = await get_or_create_sql_user(mongo_user_id, current_user, db)
     user_role = current_user.get("role")
     
     result = await db.execute(
@@ -271,7 +314,8 @@ async def execute_workflow_action(
 ):
     """Execute workflow action (approve, reject, complete, etc.)"""
     
-    user_id = int(current_user.get("sub"))
+    mongo_user_id = current_user.get("sub")  # MongoDB ObjectId as string
+    user_id = await get_or_create_sql_user(mongo_user_id, current_user, db)
     user_role = current_user.get("role")
     
     # Only admin and faculty can execute workflow actions
@@ -338,7 +382,8 @@ async def get_workflow_history(
 ):
     """Get workflow history for a request"""
     
-    user_id = int(current_user.get("sub"))
+    mongo_user_id = current_user.get("sub")  # MongoDB ObjectId as string
+    user_id = await get_or_create_sql_user(mongo_user_id, current_user, db)
     user_role = current_user.get("role")
     
     # Check if request exists and user has access
@@ -378,7 +423,8 @@ async def cancel_request(
 ):
     """Cancel a service request"""
     
-    user_id = int(current_user.get("sub"))
+    mongo_user_id = current_user.get("sub")  # MongoDB ObjectId as string
+    user_id = await get_or_create_sql_user(mongo_user_id, current_user, db)
     user_role = current_user.get("role")
     
     result = await db.execute(

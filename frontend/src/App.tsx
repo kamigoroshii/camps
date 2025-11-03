@@ -17,7 +17,10 @@ import AdminRequestsPage from './pages/AdminRequestsPage'
 import AdminUsersPage from './pages/AdminUsersPage'
 import AdminReportsPage from './pages/AdminReportsPage'
 import AdminSettingsPage from './pages/AdminSettingsPage'
+import AdminChatPage from './pages/AdminChatPage'
 import ScholarshipPage from './pages/ScholarshipPage'
+import ScholarshipVerificationPage from './pages/ScholarshipVerificationPage'
+import AdminScholarshipReviewPage from './pages/AdminScholarshipReviewPage'
 import CamsPage from './pages/CamsPage'
 import CertificateRequestsPage from './pages/CertificateRequestsPage'
 import BusPassPage from './pages/BusPassPage'
@@ -25,6 +28,8 @@ import MemoCardPage from './pages/MemoCardPage'
 import ThemeDemoPage from './pages/ThemeDemoPage'
 import ComponentsShowcasePage from './pages/ComponentsShowcasePage'
 import AccessibleLoginPage from './pages/AccessibleLoginPage'
+import ChatPage from './pages/ChatPage'
+import DebugPage from './pages/DebugPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -43,14 +48,15 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />
   }
   
-  // Check if user role is admin (case-insensitive)
-  const isAdmin = user?.role?.toLowerCase() === 'admin'
-  
+  // Allow both 'admin' and 'super_admin' roles (case-insensitive)
+  const role = user?.role?.toLowerCase()
+  const isAdmin = role === 'admin' || role === 'super_admin'
+
   if (!isAdmin) {
     // Redirect non-admins to dashboard with a message (you can add a toast notification here)
     return <Navigate to="/dashboard" replace />
   }
-  
+
   return <>{children}</>
 }
 
@@ -103,9 +109,12 @@ function App() {
             <Route path="student-services/history" element={<RequestsPage />} />
             
             <Route path="scholarships" element={<ScholarshipPage />} />
+            <Route path="scholarship-verification" element={<ScholarshipVerificationPage />} />
             <Route path="cams" element={<CamsPage />} />
+            <Route path="chat" element={<ChatPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="notifications" element={<NotificationsPage />} />
+            <Route path="debug" element={<DebugPage />} />
           </Route>
 
           {/* Admin-only routes */}
@@ -122,6 +131,8 @@ function App() {
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="reports" element={<AdminReportsPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
+            <Route path="chat" element={<AdminChatPage />} />
+            <Route path="scholarship-review" element={<AdminScholarshipReviewPage />} />
           </Route>
 
           {/* 404 */}

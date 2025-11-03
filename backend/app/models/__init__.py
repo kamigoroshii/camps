@@ -49,7 +49,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    requests = relationship("ServiceRequest", back_populates="user", cascade="all, delete-orphan")
+    requests = relationship("ServiceRequest", foreign_keys="ServiceRequest.user_id", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user", cascade="all, delete-orphan")
     

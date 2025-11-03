@@ -73,7 +73,18 @@ export default function LoginPage() {
           localStorage.setItem('rememberMe', 'true')
         }
         toast.success(`Welcome back, ${user.full_name || user.username || user.email}!`)
-        navigate('/dashboard')
+        // Debug logging
+        console.log('Login response user:', user)
+        const role = user?.role?.toLowerCase()
+        console.log('User role:', role)
+        // Redirect admin and super_admin users to /admin, others to /dashboard
+        if (role === 'admin' || role === 'super_admin') {
+          console.log('Redirecting to /admin')
+          navigate('/admin')
+        } else {
+          console.log('Redirecting to /dashboard')
+          navigate('/dashboard')
+        }
       } catch (err: any) {
         const errorMessage =
           err.response?.data?.detail ||
@@ -414,35 +425,6 @@ export default function LoginPage() {
             </Box>
           </form>
 
-          {/* Demo Credentials */}
-          <Box
-            sx={{
-              mt: 4,
-              p: 2.5,
-              bgcolor: palette.backgroundSubtle,
-              borderRadius: 2,
-              border: `1px solid ${palette.borderLight}`,
-            }}
-          >
-            <Typography 
-              variant="caption" 
-              sx={{ 
-                fontWeight: 600, 
-                display: 'block', 
-                mb: 1,
-                color: palette.textPrimary,
-                fontSize: '0.8rem',
-              }}
-            >
-              💡 Demo Credentials
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', color: palette.textSecondary, mb: 0.5 }}>
-              Email: <strong>demo@example.com</strong>
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', color: palette.textSecondary }}>
-              Password: <strong>demo123</strong>
-            </Typography>
-          </Box>
         </Paper>
 
         {/* Footer */}

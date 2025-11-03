@@ -44,12 +44,16 @@ interface NavItem {
   icon: React.ReactNode
 }
 
+import { Chat as ChatIcon, VerifiedUser as VerificationIcon } from '@mui/icons-material'
+
 const adminNavigationItems: NavItem[] = [
   { title: 'Dashboard', path: '/admin', icon: <DashboardIcon /> },
   { title: 'Manage Requests', path: '/admin/requests', icon: <RequestsIcon /> },
+  { title: 'Scholarship Review', path: '/admin/scholarship-review', icon: <VerificationIcon /> },
   { title: 'User Management', path: '/admin/users', icon: <UsersIcon /> },
   { title: 'Reports & Analytics', path: '/admin/reports', icon: <ReportsIcon /> },
   { title: 'System Settings', path: '/admin/settings', icon: <SettingsIcon /> },
+  { title: 'Chat', path: '/admin/chat', icon: <ChatIcon /> },
 ]
 
 export default function AdminLayout() {

@@ -6,10 +6,45 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.core.security import get_current_user
-from app.models import Notification
+from app.models import Notification, User, UserRole, UserStatus
 from app.schemas import NotificationResponse, MessageResponse
 
 router = APIRouter()
+
+
+async def get_or_create_sql_user(mongo_user_id: str, mongo_user_data: dict, db: AsyncSession) -> int:
+    """Get or create SQL user from MongoDB user data"""
+    # Try to find existing user by email
+    result = await db.execute(
+        select(User).where(User.email == mongo_user_data.get("email"))
+    )
+    sql_user = result.scalar_one_or_none()
+    
+    if sql_user:
+        return sql_user.id
+    
+    # Create new SQL user
+    role_map = {
+        "admin": UserRole.ADMIN,
+        "super_admin": UserRole.SUPER_ADMIN,
+        "faculty": UserRole.FACULTY,
+        "student": UserRole.STUDENT
+    }
+    
+    sql_user = User(
+        email=mongo_user_data.get("email"),
+        username=mongo_user_data.get("username", mongo_user_data.get("email")),
+        full_name=mongo_user_data.get("full_name", ""),
+        role=role_map.get(mongo_user_data.get("role"), UserRole.STUDENT),
+        status=UserStatus.ACTIVE,
+        is_verified=True
+    )
+    
+    db.add(sql_user)
+    await db.commit()
+    await db.refresh(sql_user)
+    
+    return sql_user.id
 
 
 @router.get("", response_model=List[NotificationResponse])
@@ -20,7 +55,8 @@ async def list_notifications(
     db: AsyncSession = Depends(get_db)
 ):
     """List notifications for current user"""
-    user_id = int(current_user.get("sub"))
+    mongo_user_id = current_user.get("sub")  # MongoDB ObjectId as string
+    user_id = await get_or_create_sql_user(mongo_user_id, current_user, db)
     
     query = select(Notification).where(Notification.user_id == user_id)
     
@@ -42,7 +78,8 @@ async def mark_notification_read(
     db: AsyncSession = Depends(get_db)
 ):
     """Mark notification as read"""
-    user_id = int(current_user.get("sub"))
+    mongo_user_id = current_user.get("sub")  # MongoDB ObjectId as string
+    user_id = await get_or_create_sql_user(mongo_user_id, current_user, db)
     
     result = await db.execute(
         select(Notification).where(
@@ -73,7 +110,8 @@ async def mark_all_notifications_read(
     db: AsyncSession = Depends(get_db)
 ):
     """Mark all notifications as read"""
-    user_id = int(current_user.get("sub"))
+    mongo_user_id = current_user.get("sub")  # MongoDB ObjectId as string
+    user_id = await get_or_create_sql_user(mongo_user_id, current_user, db)
     
     result = await db.execute(
         select(Notification).where(

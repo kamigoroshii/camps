@@ -176,19 +176,20 @@ async def upload_document(
 @router.post("/chat", response_model=ChatResponse, tags=["RAG"])
 async def chat(request: ChatRequest):
     """
-    Process chat message and generate AI response using RAG
+    Process chat message and generate AI response using enhanced RAG with contextual awareness
     """
     try:
         if not request.message.strip():
             raise HTTPException(status_code=400, detail="No message provided")
         
-        # Process query with RAG
-        result = await rag_service.process_query(
+        # Process query with enhanced RAG service
+        result = await rag_service.process_query_with_context(
             query=request.message,
-            user_id=None,  # Can be extracted from authentication
+            user_id=None,  # Can be extracted from authentication if needed
+            session_id=request.chat_id,
             request_id=request.request_id,
             language=request.language,
-            max_chunks=settings.MAX_CONTEXT_CHUNKS
+            conversation_history=None  # Can be implemented for conversation memory
         )
         
         return {
@@ -202,7 +203,7 @@ async def chat(request: ChatRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Chat error: {e}")
+        logger.error(f"Enhanced chat processing error: {e}")
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
 
 

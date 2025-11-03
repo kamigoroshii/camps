@@ -135,9 +135,9 @@ export default function ScholarshipPage() {
       { id: '2', label: 'Fill Academic Details', completed: true, required: true },
       { id: '3', label: 'Upload Income Certificate', completed: true, required: true },
       { id: '4', label: 'Upload Marksheet', completed: true, required: true },
-      { id: '5', label: 'Upload Bank Details', completed: false, required: true },
+      { id: '5', label: 'Upload Bank Details', completed: true, required: true },
       { id: '6', label: 'Upload Caste Certificate', completed: false, required: false },
-      { id: '7', label: 'Submit Application', completed: false, required: true },
+      { id: '7', label: 'Submit Application', completed: false, required: false }, // This will be auto-completed on submission
     ],
     documents: [
       {
@@ -248,6 +248,87 @@ export default function ScholarshipPage() {
         item.id === itemId ? { ...item, completed: !item.completed } : item
       ),
     }))
+  }
+
+  const handleSubmitApplication = async () => {
+    // Validate required fields
+    const requiredFields = [
+      formData.fullName,
+      formData.rollNumber,
+      formData.email,
+      formData.program
+    ]
+
+    if (requiredFields.some(field => !field)) {
+      alert('Please fill in all required fields')
+      return
+    }
+
+    // Check if required documents are uploaded (excluding 'Submit Application' item)
+    const requiredDocsUploaded = application.checklist
+      .filter(item => item.required && item.id !== '7') // Exclude 'Submit Application' from validation
+      .every(item => item.completed)
+
+    if (!requiredDocsUploaded) {
+      alert('Please complete all required checklist items before submitting')
+      return
+    }
+
+    // Submit application
+    const confirmed = confirm('Are you sure you want to submit your scholarship application? You cannot edit it after submission.')
+    
+    if (confirmed) {
+      try {
+        // Call the API to submit the application
+        const response = await fetch('/api/v1/scholarship-verification/submit-application', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}` // Adjust token retrieval as needed
+          },
+          body: JSON.stringify({
+            full_name: formData.fullName,
+            roll_number: formData.rollNumber,
+            email: formData.email,
+            program: formData.program,
+            department: 'Computer Science', // Default - can be enhanced later
+            academic_year: formData.year || '2024-2025',
+            scholarship_type: 'Merit-Based Scholarship', // Default - can be enhanced later
+            family_income: formData.familyIncome ? parseFloat(formData.familyIncome) : null,
+            additional_details: `Phone: ${formData.phone}, CGPA: ${formData.cgpa}, Bank: ${formData.bankName}, Account: ${formData.accountNumber}, IFSC: ${formData.ifscCode}`
+          })
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const { request_id, application_id } = data
+          
+          // Store the request ID for verification page
+          localStorage.setItem('scholarshipRequestId', request_id.toString())
+          
+          alert(`✅ Application submitted successfully! 
+          
+Your application ID is: ${application_id}
+Your request ID is: ${request_id}
+
+Save these numbers for document verification.`)
+          
+          // Optionally redirect to verification page
+          const goToVerification = confirm('Would you like to go to the document verification page now?')
+          if (goToVerification) {
+            window.location.href = `/scholarship-verification?requestId=${request_id}`
+          } else {
+            setActiveStep(0)
+          }
+        } else {
+          const errorData = await response.json()
+          alert(`Failed to submit application: ${errorData.detail || 'Unknown error'}`)
+        }
+      } catch (error) {
+        console.error('Error submitting application:', error)
+        alert('Failed to submit application. Please try again.')
+      }
+    }
   }
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, docType: string) => {
@@ -1130,6 +1211,7 @@ export default function ScholarshipPage() {
                     <Button onClick={handleBack}>Back</Button>
                     <Button
                       variant="contained"
+                      onClick={handleSubmitApplication}
                       sx={{
                         bgcolor: "#95A37F",
                         color: "#FFFFFF",

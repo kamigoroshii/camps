@@ -36,8 +36,14 @@ import {
   Chat as ChatIcon,
   Close as CloseIcon,
 } from '@mui/icons-material'
+import { toast } from 'react-toastify'
 import { useAuthStore } from '../stores/authStore'
 import { palette, shadows } from '../theme'
+import dashboardApi, { 
+  RecentRequest as ApiRecentRequest, 
+  ActivityItem,
+  NotificationData 
+} from '../services/dashboardApi'
 
 interface StatCard {
   title: string
@@ -58,9 +64,10 @@ interface QuickAction {
 interface RecentRequest {
   id: number
   title: string
-  status: 'pending' | 'in_progress' | 'approved' | 'rejected'
+  status: 'pending' | 'in_progress' | 'approved' | 'rejected' | 'submitted' | 'under_review' | 'pending_approval' | 'completed'
   date: string
   daysRemaining?: number
+  request_number?: string
 }
 
 interface SLAAlert {
@@ -69,46 +76,87 @@ interface SLAAlert {
   message: string
   severity: 'warning' | 'error'
   daysRemaining: number
+  requestId?: number
 }
 
 export default function DashboardPage() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
-  const [chatOpen, setChatOpen] = useState(false)
-  const [hasUnreadMessages, setHasUnreadMessages] = useState(true)
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false)
+  const [stats, setStats] = useState({
+    activeRequests: 0,
+    pendingApprovals: 0,
+    notifications: 0,
+    completed: 0
+  })
+  const [recentRequests, setRecentRequests] = useState<RecentRequest[]>([])
+  const [slaAlerts, setSlaAlerts] = useState<SLAAlert[]>([])
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([])
+  const [notifications, setNotifications] = useState<NotificationData[]>([])
 
-  // Mock data - Replace with actual API calls
-  const stats: StatCard[] = [
-    {
-      title: 'Active Requests',
-      value: 5,
-      icon: <AssignmentIcon />,
-      color: palette.primary,
-      description: '2 pending approval',
-    },
-    {
-      title: 'Pending Approvals',
-      value: 3,
-      icon: <ScheduleIcon />,
-      color: palette.warning,
-      description: 'Action needed',
-    },
-    {
-      title: 'Notifications',
-      value: 7,
-      icon: <NotificationsIcon />,
-      color: palette.error,
-      description: '3 unread',
-    },
-    {
-      title: 'Completed',
-      value: 12,
-      icon: <CheckCircleIcon />,
-      color: palette.success,
-      description: 'This semester',
-    },
-  ]
+  // Load dashboard data
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true)
+      
+      // Load user stats
+      const userStats = await dashboardApi.getUserDashboardStats()
+      setStats(userStats)
+      
+      // Load recent requests
+      const requests = await dashboardApi.getRecentRequests(4)
+      const formattedRequests: RecentRequest[] = requests.map(req => {
+        const dueDate = req.sla_due_date ? new Date(req.sla_due_date) : null
+        const now = new Date()
+        const daysRemaining = dueDate ? Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : undefined
+        
+        return {
+          id: req.id,
+          title: req.title,
+          status: req.status.toLowerCase().replace('_', '_') as any,
+          date: formatDate(req.created_at),
+          daysRemaining: daysRemaining && daysRemaining > 0 ? daysRemaining : undefined,
+          request_number: req.request_number
+        }
+      })
+      setRecentRequests(formattedRequests)
+      
+      // Load SLA alerts
+      const alerts = await dashboardApi.getSLAAlerts()
+      setSlaAlerts(alerts)
+      
+      // Load recent activity
+      const activity = await dashboardApi.getRecentActivity(4)
+      setRecentActivity(activity)
+      
+      // Load notifications
+      const notifs = await dashboardApi.getNotifications(false, 5)
+      setNotifications(notifs)
+      
+    } catch (error) {
+      console.error('Error loading dashboard data:', error)
+      toast.error('Failed to load dashboard data')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadDashboardData()
+  }, [])
+
+  const formatDate = (dateString: string): string => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffTime = Math.abs(now.getTime() - date.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays === 1) return '1 day ago'
+    if (diffDays < 7) return `${diffDays} days ago`
+    if (diffDays < 14) return '1 week ago'
+    return `${Math.floor(diffDays / 7)} weeks ago`
+  }
 
   const quickActions: QuickAction[] = [
     {
@@ -139,67 +187,21 @@ export default function DashboardPage() {
     },
   ]
 
-  const slaAlerts: SLAAlert[] = [
-    {
-      id: 1,
-      title: 'Course Registration Deadline',
-      message: 'Your course registration request needs action before the deadline',
-      severity: 'error',
-      daysRemaining: 2,
-    },
-    {
-      id: 2,
-      title: 'Document Upload Required',
-      message: 'Please upload missing documents for your scholarship application',
-      severity: 'warning',
-      daysRemaining: 5,
-    },
-  ]
-
-  const recentRequests: RecentRequest[] = [
-    { 
-      id: 1, 
-      title: 'Course Registration Request', 
-      status: 'in_progress', 
-      date: '2 days ago',
-      daysRemaining: 3,
-    },
-    { 
-      id: 2, 
-      title: 'Grade Appeal Form', 
-      status: 'pending', 
-      date: '5 days ago',
-      daysRemaining: 7,
-    },
-    { 
-      id: 3, 
-      title: 'Transcript Request', 
-      status: 'approved', 
-      date: '1 week ago',
-    },
-    { 
-      id: 4, 
-      title: 'Scholarship Application', 
-      status: 'in_progress', 
-      date: '1 week ago',
-      daysRemaining: 10,
-    },
-  ]
-
   useEffect(() => {
-    // Simulate data loading
-    setTimeout(() => {
-      setLoading(false)
-    }, 500)
+    loadDashboardData()
   }, [])
 
   const getStatusColor = (status: string): 'default' | 'warning' | 'success' | 'error' | 'info' => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'pending':
+      case 'submitted':
         return 'warning'
       case 'in_progress':
+      case 'under_review':
+      case 'pending_approval':
         return 'info'
       case 'approved':
+      case 'completed':
         return 'success'
       case 'rejected':
         return 'error'
@@ -216,17 +218,44 @@ export default function DashboardPage() {
   }
 
   const handleRefresh = () => {
-    setLoading(true)
-    setTimeout(() => {
-      setLoading(false)
-    }, 500)
+    loadDashboardData()
+  }
+
+  const getActivityColor = (action: string): string => {
+    switch (action) {
+      case 'REQUEST_APPROVED':
+        return palette.success
+      case 'REQUEST_SUBMITTED':
+      case 'REQUEST_CREATED':
+        return palette.primary
+      case 'NOTIFICATION_SENT':
+        return palette.info
+      case 'REQUEST_REJECTED':
+        return palette.error
+      default:
+        return palette.primary
+    }
+  }
+
+  const getActivityIcon = (action: string) => {
+    switch (action) {
+      case 'REQUEST_APPROVED':
+        return <CheckCircleIcon sx={{ fontSize: 20 }} />
+      case 'REQUEST_SUBMITTED':
+      case 'REQUEST_CREATED':
+        return <AssignmentIcon sx={{ fontSize: 20 }} />
+      case 'NOTIFICATION_SENT':
+        return <NotificationsIcon sx={{ fontSize: 20 }} />
+      case 'REQUEST_REJECTED':
+        return <ScheduleIcon sx={{ fontSize: 20 }} />
+      default:
+        return <AssignmentIcon sx={{ fontSize: 20 }} />
+    }
   }
 
   const handleChatToggle = () => {
-    setChatOpen(!chatOpen)
-    if (!chatOpen && hasUnreadMessages) {
-      setHasUnreadMessages(false)
-    }
+    // Navigate to the chat page instead of opening inline chat
+    navigate('/chat')
   }
 
   const getGreeting = () => {
@@ -338,69 +367,245 @@ export default function DashboardPage() {
 
       {/* Summary Cards with Transparent Olive Backgrounds */}
       <Grid container spacing={{ xs: 2, sm: 2.5 }} sx={{ mb: 4 }}>
-        {stats.map((stat, index) => (
-          <Grid item xs={6} sm={6} md={3} key={index}>
-            <Card
-              elevation={0}
-              sx={{
-                height: '100%',
-                bgcolor: `rgba(${parseInt(palette.primary.slice(1, 3), 16)}, ${parseInt(palette.primary.slice(3, 5), 16)}, ${parseInt(palette.primary.slice(5, 7), 16)}, ${index % 2 === 0 ? '0.15' : '0.20'})`,
+        <Grid item xs={6} sm={6} md={3}>
+          <Card
+            elevation={0}
+            sx={{
+              height: '100%',
+              bgcolor: `rgba(${parseInt(palette.primary.slice(1, 3), 16)}, ${parseInt(palette.primary.slice(3, 5), 16)}, ${parseInt(palette.primary.slice(5, 7), 16)}, 0.15)`,
+              border: `1px solid ${palette.borderLight}`,
+              boxShadow: 'none !important',
+              pointerEvents: 'none',
+              '&:hover': {
                 border: `1px solid ${palette.borderLight}`,
                 boxShadow: 'none !important',
-                pointerEvents: 'none',
-                '&:hover': {
-                  border: `1px solid ${palette.borderLight}`,
-                  boxShadow: 'none !important',
-                },
-              }}
-            >
-              <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                  <Box
-                    sx={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 1,
-                      bgcolor: palette.white,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: stat.color,
-                      fontSize: 20,
-                      flexShrink: 0,
-                      '& .MuiSvgIcon-root': {
-                        fontSize: '20px',
-                        display: 'block',
-                      },
-                    }}
-                  >
-                    {stat.icon}
-                  </Box>
-                </Box>
-                <Typography 
-                  variant="h5" 
-                  sx={{ 
-                    fontWeight: 700, 
-                    color: palette.textPrimary, 
-                    mb: 0.25,
-                    fontSize: { xs: '1.25rem', sm: '1.5rem' },
-                    lineHeight: 1.2,
+              },
+            }}
+          >
+            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Box
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 1,
+                    bgcolor: palette.white,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: palette.primary,
+                    fontSize: 20,
+                    flexShrink: 0,
+                    '& .MuiSvgIcon-root': {
+                      fontSize: '20px',
+                      display: 'block',
+                    },
                   }}
                 >
-                  {stat.value}
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: palette.textPrimary, mb: 0.25, fontSize: '0.8rem', lineHeight: 1.3 }}>
-                  {stat.title}
-                </Typography>
-                {stat.description && (
-                  <Typography variant="caption" sx={{ color: palette.textSecondary, fontSize: '0.7rem', lineHeight: 1.2 }}>
-                    {stat.description}
-                  </Typography>
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
+                  <AssignmentIcon />
+                </Box>
+              </Box>
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 700, 
+                  color: palette.textPrimary, 
+                  mb: 0.25,
+                  fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                  lineHeight: 1.2,
+                }}
+              >
+                {stats.activeRequests}
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: palette.textPrimary, mb: 0.25, fontSize: '0.8rem', lineHeight: 1.3 }}>
+                Active Requests
+              </Typography>
+              <Typography variant="caption" sx={{ color: palette.textSecondary, fontSize: '0.7rem', lineHeight: 1.2 }}>
+                In progress
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={6} sm={6} md={3}>
+          <Card
+            elevation={0}
+            sx={{
+              height: '100%',
+              bgcolor: `rgba(${parseInt(palette.warning.slice(1, 3), 16)}, ${parseInt(palette.warning.slice(3, 5), 16)}, ${parseInt(palette.warning.slice(5, 7), 16)}, 0.20)`,
+              border: `1px solid ${palette.borderLight}`,
+              boxShadow: 'none !important',
+              pointerEvents: 'none',
+              '&:hover': {
+                border: `1px solid ${palette.borderLight}`,
+                boxShadow: 'none !important',
+              },
+            }}
+          >
+            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Box
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 1,
+                    bgcolor: palette.white,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: palette.warning,
+                    fontSize: 20,
+                    flexShrink: 0,
+                    '& .MuiSvgIcon-root': {
+                      fontSize: '20px',
+                      display: 'block',
+                    },
+                  }}
+                >
+                  <ScheduleIcon />
+                </Box>
+              </Box>
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 700, 
+                  color: palette.textPrimary, 
+                  mb: 0.25,
+                  fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                  lineHeight: 1.2,
+                }}
+              >
+                {stats.pendingApprovals}
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: palette.textPrimary, mb: 0.25, fontSize: '0.8rem', lineHeight: 1.3 }}>
+                Pending Approvals
+              </Typography>
+              <Typography variant="caption" sx={{ color: palette.textSecondary, fontSize: '0.7rem', lineHeight: 1.2 }}>
+                Action needed
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={6} sm={6} md={3}>
+          <Card
+            elevation={0}
+            sx={{
+              height: '100%',
+              bgcolor: `rgba(${parseInt(palette.error.slice(1, 3), 16)}, ${parseInt(palette.error.slice(3, 5), 16)}, ${parseInt(palette.error.slice(5, 7), 16)}, 0.15)`,
+              border: `1px solid ${palette.borderLight}`,
+              boxShadow: 'none !important',
+              pointerEvents: 'none',
+              '&:hover': {
+                border: `1px solid ${palette.borderLight}`,
+                boxShadow: 'none !important',
+              },
+            }}
+          >
+            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Box
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 1,
+                    bgcolor: palette.white,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: palette.error,
+                    fontSize: 20,
+                    flexShrink: 0,
+                    '& .MuiSvgIcon-root': {
+                      fontSize: '20px',
+                      display: 'block',
+                    },
+                  }}
+                >
+                  <NotificationsIcon />
+                </Box>
+              </Box>
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 700, 
+                  color: palette.textPrimary, 
+                  mb: 0.25,
+                  fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                  lineHeight: 1.2,
+                }}
+              >
+                {stats.notifications}
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: palette.textPrimary, mb: 0.25, fontSize: '0.8rem', lineHeight: 1.3 }}>
+                Notifications
+              </Typography>
+              <Typography variant="caption" sx={{ color: palette.textSecondary, fontSize: '0.7rem', lineHeight: 1.2 }}>
+                Unread messages
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={6} sm={6} md={3}>
+          <Card
+            elevation={0}
+            sx={{
+              height: '100%',
+              bgcolor: `rgba(${parseInt(palette.success.slice(1, 3), 16)}, ${parseInt(palette.success.slice(3, 5), 16)}, ${parseInt(palette.success.slice(5, 7), 16)}, 0.20)`,
+              border: `1px solid ${palette.borderLight}`,
+              boxShadow: 'none !important',
+              pointerEvents: 'none',
+              '&:hover': {
+                border: `1px solid ${palette.borderLight}`,
+                boxShadow: 'none !important',
+              },
+            }}
+          >
+            <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Box
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 1,
+                    bgcolor: palette.white,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: palette.success,
+                    fontSize: 20,
+                    flexShrink: 0,
+                    '& .MuiSvgIcon-root': {
+                      fontSize: '20px',
+                      display: 'block',
+                    },
+                  }}
+                >
+                  <CheckCircleIcon />
+                </Box>
+              </Box>
+              <Typography 
+                variant="h5" 
+                sx={{ 
+                  fontWeight: 700, 
+                  color: palette.textPrimary, 
+                  mb: 0.25,
+                  fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                  lineHeight: 1.2,
+                }}
+              >
+                {stats.completed}
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: palette.textPrimary, mb: 0.25, fontSize: '0.8rem', lineHeight: 1.3 }}>
+                Completed
+              </Typography>
+              <Typography variant="caption" sx={{ color: palette.textSecondary, fontSize: '0.7rem', lineHeight: 1.2 }}>
+                This semester
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
       </Grid>
 
       {/* Quick Action Buttons with Solid Olive Backgrounds */}
@@ -471,6 +676,175 @@ export default function DashboardPage() {
               </Button>
             </Grid>
           ))}
+        </Grid>
+      </Paper>
+
+      {/* Department Quick Access Cards */}
+      <Paper 
+        elevation={0}
+        sx={{ 
+          p: { xs: 2, sm: 3 }, 
+          mb: 4,
+          border: `1px solid ${palette.borderLight}`,
+          borderRadius: 2,
+        }}
+      >
+        <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 3, color: palette.textPrimary }}>
+          Departments
+        </Typography>
+        <Grid container spacing={2}>
+          {/* Student Service Center */}
+          <Grid item xs={12} sm={6} md={4}>
+            <Card
+              elevation={0}
+              sx={{
+                height: '100%',
+                cursor: 'pointer',
+                border: `2px solid ${palette.primary}`,
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: shadows.lg,
+                  borderColor: palette.primaryDark,
+                },
+              }}
+              onClick={() => navigate('/requests')}
+            >
+              <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                <Box
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: `rgba(${parseInt(palette.primary.slice(1, 3), 16)}, ${parseInt(palette.primary.slice(3, 5), 16)}, ${parseInt(palette.primary.slice(5, 7), 16)}, 0.15)`,
+                    mx: 'auto',
+                    mb: 2,
+                  }}
+                >
+                  <AssignmentIcon sx={{ fontSize: 32, color: palette.primary }} />
+                </Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: palette.textPrimary }}>
+                  Student Service Center
+                </Typography>
+                <Typography variant="body2" sx={{ color: palette.textSecondary, mb: 2 }}>
+                  Certificates, Bus Pass, Memo Cards, and more
+                </Typography>
+                <Button
+                  variant="text"
+                  endIcon={<ArrowForwardIcon />}
+                  sx={{ color: palette.primary, fontWeight: 600 }}
+                >
+                  Access Services
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Scholarship Department */}
+          <Grid item xs={12} sm={6} md={4}>
+            <Card
+              elevation={0}
+              sx={{
+                height: '100%',
+                cursor: 'pointer',
+                border: `2px solid ${palette.secondary}`,
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: shadows.lg,
+                  borderColor: palette.secondaryDark,
+                },
+              }}
+              onClick={() => navigate('/scholarships')}
+            >
+              <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                <Box
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: `rgba(${parseInt(palette.secondary.slice(1, 3), 16)}, ${parseInt(palette.secondary.slice(3, 5), 16)}, ${parseInt(palette.secondary.slice(5, 7), 16)}, 0.15)`,
+                    mx: 'auto',
+                    mb: 2,
+                  }}
+                >
+                  <DescriptionIcon sx={{ fontSize: 32, color: palette.secondary }} />
+                </Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: palette.textPrimary }}>
+                  Scholarship Department
+                </Typography>
+                <Typography variant="body2" sx={{ color: palette.textSecondary, mb: 2 }}>
+                  Apply for scholarships and financial aid
+                </Typography>
+                <Button
+                  variant="text"
+                  endIcon={<ArrowForwardIcon />}
+                  sx={{ color: palette.secondary, fontWeight: 600 }}
+                >
+                  View Scholarships
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* CAMS Department */}
+          <Grid item xs={12} sm={6} md={4}>
+            <Card
+              elevation={0}
+              sx={{
+                height: '100%',
+                cursor: 'pointer',
+                border: `2px solid ${palette.info}`,
+                borderRadius: 2,
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: shadows.lg,
+                  borderColor: palette.infoDark,
+                },
+              }}
+              onClick={() => navigate('/cams')}
+            >
+              <CardContent sx={{ p: 3, textAlign: 'center' }}>
+                <Box
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    bgcolor: `rgba(${parseInt(palette.info.slice(1, 3), 16)}, ${parseInt(palette.info.slice(3, 5), 16)}, ${parseInt(palette.info.slice(5, 7), 16)}, 0.15)`,
+                    mx: 'auto',
+                    mb: 2,
+                  }}
+                >
+                  <TimelineIcon sx={{ fontSize: 32, color: palette.info }} />
+                </Box>
+                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: palette.textPrimary }}>
+                  CAMS Department
+                </Typography>
+                <Typography variant="body2" sx={{ color: palette.textSecondary, mb: 2 }}>
+                  Campus Activities Management System
+                </Typography>
+                <Button
+                  variant="text"
+                  endIcon={<ArrowForwardIcon />}
+                  sx={{ color: palette.info, fontWeight: 600 }}
+                >
+                  Open CAMS
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
         </Grid>
       </Paper>
 
@@ -550,6 +924,22 @@ export default function DashboardPage() {
                                 }}
                               >
                                 {request.daysRemaining} days left
+                              </Typography>
+                            </>
+                          )}
+                          {request.request_number && (
+                            <>
+                              <Typography variant="caption" sx={{ color: palette.textSecondary }}>
+                                •
+                              </Typography>
+                              <Typography 
+                                variant="caption" 
+                                sx={{ 
+                                  color: palette.textSecondary,
+                                  fontWeight: 500,
+                                }}
+                              >
+                                #{request.request_number}
                               </Typography>
                             </>
                           )}
@@ -675,54 +1065,29 @@ export default function DashboardPage() {
               Recent Activity
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-              {[
-                { 
-                  icon: <CheckCircleIcon sx={{ fontSize: 20 }} />, 
-                  color: palette.success,
-                  text: 'Request #1234 approved', 
-                  time: '2h ago',
-                },
-                { 
-                  icon: <ScheduleIcon sx={{ fontSize: 20 }} />, 
-                  color: palette.warning,
-                  text: 'Action required on Request #1235', 
-                  time: '4h ago',
-                },
-                { 
-                  icon: <NotificationsIcon sx={{ fontSize: 20 }} />, 
-                  color: palette.info,
-                  text: 'New message from advisor', 
-                  time: '1d ago',
-                },
-                { 
-                  icon: <AssignmentIcon sx={{ fontSize: 20 }} />, 
-                  color: palette.primary,
-                  text: 'Request #1236 submitted', 
-                  time: '2d ago',
-                },
-              ].map((activity, index) => (
-                <Box key={index} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+              {recentActivity.map((activity, index) => (
+                <Box key={activity.id} sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
                   <Box
                     sx={{
                       width: 36,
                       height: 36,
                       borderRadius: '50%',
-                      bgcolor: `${activity.color}15`,
-                      color: activity.color,
+                      bgcolor: `${getActivityColor(activity.action)}15`,
+                      color: getActivityColor(activity.action),
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       flexShrink: 0,
                     }}
                   >
-                    {activity.icon}
+                    {getActivityIcon(activity.action)}
                   </Box>
                   <Box sx={{ flex: 1 }}>
                     <Typography variant="body2" sx={{ mb: 0.5, color: palette.textPrimary }}>
-                      {activity.text}
+                      {activity.description}
                     </Typography>
                     <Typography variant="caption" sx={{ color: palette.textSecondary }}>
-                      {activity.time}
+                      {formatDate(activity.created_at)}
                     </Typography>
                   </Box>
                 </Box>
@@ -742,140 +1107,34 @@ export default function DashboardPage() {
             zIndex: 1000,
           }}
         >
-          {chatOpen ? (
-            <Paper
-              elevation={8}
+          <Tooltip title="Open AI Chat Assistant" placement="left">
+            <Fab
+              onClick={handleChatToggle}
               sx={{
-                width: { xs: 'calc(100vw - 32px)', sm: 380 },
-                height: 500,
-                borderRadius: 3,
-                overflow: 'hidden',
-                border: `2px solid ${palette.primary}`,
-                display: 'flex',
-                flexDirection: 'column',
+                bgcolor: palette.primary,
+                color: palette.white,
+                width: 64,
+                height: 64,
+                boxShadow: shadows.lg,
               }}
             >
-              {/* Chat Header */}
-              <Box
+              <Badge
+                color="error"
+                variant="dot"
+                invisible={!hasUnreadMessages}
                 sx={{
-                  bgcolor: palette.primary,
-                  color: palette.white,
-                  p: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
+                  '& .MuiBadge-dot': {
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    border: `2px solid ${palette.white}`,
+                  },
                 }}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <Avatar
-                    sx={{
-                      bgcolor: palette.white,
-                      color: palette.primary,
-                      width: 36,
-                      height: 36,
-                    }}
-                  >
-                    <SmartToyIcon />
-                  </Avatar>
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                      AI Assistant
-                    </Typography>
-                    <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                      RAG-powered help
-                    </Typography>
-                  </Box>
-                </Box>
-                <IconButton
-                  size="small"
-                  onClick={handleChatToggle}
-                  sx={{
-                    color: palette.white,
-                  }}
-                >
-                  <CloseIcon />
-                </IconButton>
-              </Box>
-
-              {/* Chat Content */}
-              <Box
-                sx={{
-                  flex: 1,
-                  bgcolor: palette.backgroundAlt,
-                  p: 2,
-                  overflowY: 'auto',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Box sx={{ textAlign: 'center', maxWidth: 280 }}>
-                  <SmartToyIcon sx={{ fontSize: 64, color: palette.primary, mb: 2, opacity: 0.6 }} />
-                  <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, color: palette.textPrimary }}>
-                    AI Assistant
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: palette.textSecondary, mb: 2 }}>
-                    Ask me anything about your requests, documents, or campus policies
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: palette.textSecondary, display: 'block', fontStyle: 'italic' }}>
-                    💡 RAG integration coming soon
-                  </Typography>
-                </Box>
-              </Box>
-
-              {/* Chat Input */}
-              <Box
-                sx={{
-                  p: 2,
-                  borderTop: `1px solid ${palette.borderLight}`,
-                  bgcolor: palette.white,
-                }}
-              >
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  sx={{
-                    py: 1.5,
-                    color: palette.textSecondary,
-                    borderColor: palette.borderLight,
-                    textTransform: 'none',
-                    justifyContent: 'flex-start',
-                  }}
-                >
-                  Type your message...
-                </Button>
-              </Box>
-            </Paper>
-          ) : (
-            <Tooltip title="Open AI Assistant" placement="left">
-              <Fab
-                onClick={handleChatToggle}
-                sx={{
-                  bgcolor: palette.primary,
-                  color: palette.white,
-                  width: 64,
-                  height: 64,
-                  boxShadow: shadows.lg,
-                }}
-              >
-                <Badge
-                  color="error"
-                  variant="dot"
-                  invisible={!hasUnreadMessages}
-                  sx={{
-                    '& .MuiBadge-dot': {
-                      width: 12,
-                      height: 12,
-                      borderRadius: '50%',
-                      border: `2px solid ${palette.white}`,
-                    },
-                  }}
-                >
-                  <ChatIcon sx={{ fontSize: 32 }} />
-                </Badge>
-              </Fab>
-            </Tooltip>
-          )}
+                <ChatIcon sx={{ fontSize: 32 }} />
+              </Badge>
+            </Fab>
+          </Tooltip>
         </Box>
       </Zoom>
     </Box>

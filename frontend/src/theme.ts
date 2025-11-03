@@ -223,7 +223,7 @@ export const theme = createTheme({
   },
   
   typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+  fontFamily: '"Inter", "IBM Plex Sans", "Roboto", "Helvetica", "Arial", sans-serif',
     
     h1: {
       fontSize: '2.5rem',

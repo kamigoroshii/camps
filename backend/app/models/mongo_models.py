@@ -3,7 +3,7 @@ MongoDB models for user authentication
 """
 
 from datetime import datetime
-from typing import Optional, Any
+from typing import Optional, Any, List
 from enum import Enum
 from pydantic import BaseModel, Field, field_validator
 from pydantic_core import core_schema
@@ -152,4 +152,129 @@ class UserResponse(BaseModel):
 
     model_config = {
         "from_attributes": True
+    }
+
+
+# ==================== Scholarship Verification Models ====================
+
+class VerificationStatus(str, Enum):
+    """Verification status enumeration"""
+    PENDING = "pending"
+    VERIFIED = "verified"
+    FAILED = "failed"
+    REVIEW_REQUIRED = "review_required"
+    ERROR = "error"
+
+
+class RiskLevel(str, Enum):
+    """Risk level enumeration"""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class ScholarshipVerificationResult(BaseModel):
+    """MongoDB model for storing scholarship verification results"""
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    request_id: int  # Reference to ServiceRequest in PostgreSQL
+    user_id: str  # MongoDB user ID
+    
+    # OCR and extraction results
+    ocr_results: dict = Field(default_factory=dict)
+    extracted_data: dict = Field(default_factory=dict)
+    
+    # Verification results
+    identity_verification: dict = Field(default_factory=dict)
+    authenticity_verification: dict = Field(default_factory=dict)
+    validity_verification: dict = Field(default_factory=dict)
+    completeness_verification: dict = Field(default_factory=dict)
+    fraud_detection: dict = Field(default_factory=dict)
+    
+    # Overall assessment
+    overall_status: VerificationStatus = VerificationStatus.PENDING
+    confidence_score: float = 0.0
+    risk_level: RiskLevel = RiskLevel.LOW
+    
+    # Decision
+    automated_decision: Optional[str] = None  # 'approve', 'reject', 'review'
+    requires_manual_review: bool = False
+    review_priority: str = "normal"
+    
+    # Manual review
+    manual_review_by: Optional[str] = None
+    manual_review_at: Optional[datetime] = None
+    manual_review_comments: Optional[str] = None
+    final_decision: Optional[str] = None
+    
+    # Metadata
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
+    
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str}
+    }
+
+
+class DocumentVerificationResult(BaseModel):
+    """MongoDB model for storing individual document verification results"""
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    document_id: int  # Reference to Document in PostgreSQL
+    request_id: int
+    user_id: str
+    
+    # Document details
+    document_name: str
+    document_type: str
+    file_extension: str
+    
+    # OCR results
+    ocr_method: str
+    ocr_confidence: float = 0.0
+    extracted_text: str = ""
+    structured_fields: dict = Field(default_factory=dict)
+    
+    # Authenticity checks
+    has_watermark: bool = False
+    has_stamp: bool = False
+    has_signature: bool = False
+    image_quality_score: float = 0.0
+    
+    # Verification status
+    is_authentic: bool = False
+    authenticity_confidence: float = 0.0
+    issues: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str}
+    }
+
+
+class VerificationAuditLog(BaseModel):
+    """Audit log for verification activities"""
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    request_id: int
+    user_id: str
+    
+    action: str  # 'ocr_extraction', 'identity_check', 'fraud_detection', etc.
+    status: str
+    details: dict = Field(default_factory=dict)
+    
+    performed_by: Optional[str] = None  # System or admin user
+    ip_address: Optional[str] = None
+    
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str}
     }

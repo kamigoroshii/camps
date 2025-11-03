@@ -1,0 +1,23 @@
+# Additional Python packages for Scholarship Verification
+
+# OCR and Image Processing
+pytesseract==0.3.10
+opencv-python==4.8.1.78
+Pillow==10.1.0
+numpy==1.26.2
+
+# PDF Processing (optional, for better PDF OCR)
+pdf2image==1.16.3
+# Note: poppler-utils is a system dependency - install separately with: choco install poppler
+
+# String similarity (for better identity matching)
+rapidfuzz==3.5.2
+fuzzywuzzy==0.18.0
+
+# Already in requirements but ensure versions:
+PyPDF2>=3.0.0
+python-docx>=1.0.0
+pandas>=2.0.0
+
+# Google Vision API (optional, for paid OCR service)
+google-cloud-vision==3.4.5
