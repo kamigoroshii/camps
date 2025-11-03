@@ -15,6 +15,7 @@ from app.core.security import get_current_user
 from app.models import User, ServiceRequest, Document, RequestType, RequestStatus, WorkflowLog
 from app.schemas import MessageResponse
 from app.services.scholarship_verification import scholarship_verification_service
+from app.services.notification_service import notification_service
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ class ScholarshipApplicationRequest(BaseModel):
     additional_details: Optional[str] = None
 
 class VerificationStatusResponse(BaseModel):
-    request_id: int
+    request_id: str
     status: str
     confidence: float
     verification_results: dict
@@ -45,13 +46,13 @@ class VerificationStatusResponse(BaseModel):
 
 
 class DocumentVerificationRequest(BaseModel):
-    request_id: int
-    document_id: int
-    user_id: int
+    request_id: str
+    document_id: str
+    user_id: str
 
 
 class BulkVerificationRequest(BaseModel):
-    request_id: int
+    request_id: str
 
 
 # ==================== ENDPOINTS ====================
@@ -59,24 +60,36 @@ class BulkVerificationRequest(BaseModel):
 @router.post("/submit-application")
 async def submit_scholarship_application(
     application: ScholarshipApplicationRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Submit a new scholarship application and get a request ID
     """
     try:
+        # Get user ID from token payload
+        user_id = current_user.get("sub")
+        
+        # Generate unique request ID and number
+        import uuid
+        request_id = str(uuid.uuid4())
+        request_number = f"REQ-{datetime.now().strftime('%Y%m%d')}-{request_id[:8].upper()}"
+        
         # Create a new service request
         new_request = ServiceRequest(
-            user_id=current_user.id,
-            request_type=RequestType.SCHOLARSHIP,
+            id=request_id,
+            request_number=request_number,
+            user_id=user_id,
+            request_type=RequestType.SCHOLARSHIP_APPLICATION,
             status=RequestStatus.SUBMITTED,
-            details={
+            title="Scholarship Application",
+            description=f"Scholarship application for {application.full_name}",
+            request_data={
                 "application_data": application.model_dump(),
                 "submission_date": str(datetime.now()),
                 "verification_status": "pending"
             },
-            priority="normal"
+            priority="medium"
         )
         
         db.add(new_request)
@@ -84,7 +97,15 @@ async def submit_scholarship_application(
         await db.refresh(new_request)
         
         # Generate application number
-        application_id = f"SCH-2024-{new_request.id:06d}"
+        application_id = f"SCH-2024-{new_request.id}"
+        
+        # Send notification to user
+        await notification_service.send_scholarship_status_notification(
+            db=db,
+            user_id=user_id,
+            request=new_request,
+            status_change="submitted"
+        )
         
         return JSONResponse(
             status_code=201,
@@ -103,174 +124,137 @@ async def submit_scholarship_application(
 
 @router.post("/upload-and-verify")
 async def upload_and_verify_document(
-    request_id: int = Form(...),
+    request_id: str = Form(...),
     document_type: str = Form(...),
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Upload a scholarship document and run automated verification
-    This endpoint:
-    1. Uploads the document
-    2. Extracts text using OCR
-    3. Runs verification checks
-    4. Returns verification results
+    Upload a scholarship document and run automated verification.
+    Steps:
+    1. Validate file and access
+    2. Save file to disk and create Document record
+    3. Run OCR and verification checks
+    4. Persist results and create workflow log
+    5. Notify user and return verification summary
     """
     try:
+        # Get user id
+        user_id = current_user.get("sub")
+
         # Validate file
         if not file.filename:
             raise HTTPException(status_code=400, detail="No file provided")
-        
-        # Verify request exists and user has access
+
+        # Ensure request exists and user has access
         request = await db.get(ServiceRequest, request_id)
         if not request:
             raise HTTPException(status_code=404, detail="Request not found")
-        
-        if request.user_id != current_user.id and current_user.role.value not in ['admin', 'super_admin']:
+        if request.user_id != user_id and current_user.get("role") not in ['admin', 'super_admin']:
             raise HTTPException(status_code=403, detail="Access denied")
-        
-        # Read file content
+
+        # Read file and save
         file_content = await file.read()
         file_extension = '.' + file.filename.rsplit('.', 1)[-1].lower()
-        
-        # Create document record in database
-        import os
-        from datetime import datetime
-        
-        # Create uploads directory if it doesn't exist
-        upload_dir = "uploads/scholarship_verification"
-        os.makedirs(upload_dir, exist_ok=True)
-        
-        # Generate unique filename
+        import os, uuid
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_filename = f"{timestamp}_{request_id}_{document_type}{file_extension}"
+        upload_dir = os.path.join("uploads", "scholarship_verification")
+        os.makedirs(upload_dir, exist_ok=True)
         file_path = os.path.join(upload_dir, unique_filename)
-        
-        # Save file to disk
-        with open(file_path, "wb") as f:
-            f.write(file_content)
-        
-        # Create document record
+        with open(file_path, 'wb') as fh:
+            fh.write(file_content)
+
+        # Create Document record
+        doc_id = str(uuid.uuid4())
         new_document = Document(
+            id=doc_id,
             request_id=request_id,
             filename=unique_filename,
             original_filename=file.filename,
             file_path=file_path,
             file_size=len(file_content),
-            mime_type=file.content_type or "application/octet-stream",
+            mime_type=file.content_type or 'application/octet-stream',
             document_type=document_type,
-            uploaded_by=current_user.id
+            uploaded_by=user_id
         )
-        
         db.add(new_document)
         await db.commit()
         await db.refresh(new_document)
-        
-        # Extract text with OCR
+
+        # OCR and verification
         logger.info(f"Extracting text from {file.filename} for request {request_id}")
-        extracted_data = await scholarship_verification_service.extract_text_with_ocr(
-            file_content, file_extension
-        )
-        
-        # Update document with OCR text
-        new_document.ocr_text = extracted_data.get('text', '')
-        await db.commit()
-        
-        # Get user data for identity verification
-        # Support both object and dict for current_user
-        if isinstance(current_user, dict):
-            user_data = {
-                'full_name': current_user.get('full_name', ''),
-                'student_id': current_user.get('student_id', ''),
-                'department': current_user.get('department', ''),
-                'email': current_user.get('email', '')
-            }
-        else:
-            user_data = {
-                'full_name': getattr(current_user, 'full_name', ''),
-                'student_id': getattr(current_user, 'student_id', ''),
-                'department': getattr(current_user, 'department', ''),
-                'email': getattr(current_user, 'email', '')
-            }
-        
-        # Run identity verification
-        logger.info(f"Running identity verification for request {request_id}")
-        identity_result = await scholarship_verification_service.verify_identity(
-            extracted_data, user_data
-        )
-        
-        # Run authenticity check
-        logger.info(f"Running authenticity check for request {request_id}")
-        authenticity_result = await scholarship_verification_service.verify_document_authenticity(
-            file_content, file_extension, extracted_data
-        )
-        
-        # Store verification results in request details
+        extracted = await scholarship_verification_service.extract_text_with_ocr(file_content, file_extension)
+
+        # Basic verification calls (service returns dicts)
+        identity = await scholarship_verification_service.verify_identity(extracted, request.request_data.get('application_data', {}))
+        authenticity = await scholarship_verification_service.verify_document_authenticity(extracted)
+        validity = await scholarship_verification_service.verify_document_data(extracted, request.request_data.get('application_data', {}))
+
         verification_results = {
-            "document_id": new_document.id,
-            "document_type": document_type,
-            "extraction": {
-                "method": extracted_data.get('method'),
-                "confidence": extracted_data.get('confidence'),
-                "text_length": len(extracted_data.get('text', '')),
-                "structured_data": extracted_data.get('structured_data', {})
-            },
-            "verification": {
-                "identity": identity_result,
-                "authenticity": authenticity_result
-            },
-            "timestamp": datetime.now().isoformat()
+            'extraction': extracted,
+            'verification': {
+                'identity': identity,
+                'authenticity': authenticity,
+                'validity': validity
+            }
         }
-        
-        # Update request details with verification results
+
+        # Persist OCR text and verification results
+        new_document.ocr_text = extracted.get('text', '')
         if not request.request_data:
             request.request_data = {}
-        
-        if 'verification_results' not in request.request_data:
-            request.request_data['verification_results'] = []
-        
+        request.request_data.setdefault('verification_results', [])
         request.request_data['verification_results'].append(verification_results)
         await db.commit()
-        
-        # Create workflow log entry
+
+        # Workflow log
         workflow_log = WorkflowLog(
+            id=str(uuid.uuid4()),
             request_id=request_id,
-            action="document_uploaded_and_verified",
-            to_status=request.status.value,
-            performed_by=current_user.id,
-            comments=f"Uploaded and verified {document_type}: {file.filename}",
+            action='document_uploaded_and_verified',
+            from_status=request.status.value if hasattr(request.status, 'value') else str(request.status),
+            to_status=request.status.value if hasattr(request.status, 'value') else str(request.status),
+            performed_by=user_id,
+            comments=f'Uploaded and verified {document_type}: {file.filename}',
             log_metadata=verification_results
         )
         db.add(workflow_log)
         await db.commit()
-        
-        # Return verification results
-        return JSONResponse(
-            status_code=200,
-            content={
-                "message": "Document uploaded and verified",
-                "document_id": new_document.id,
-                "document_name": file.filename,
-                "document_type": document_type,
-                "extraction": verification_results["extraction"],
-                "verification": verification_results["verification"]
-            }
+
+        # Notify
+        await notification_service.send_scholarship_status_notification(
+            db=db,
+            user_id=user_id,
+            request=request,
+            status_change='document_uploaded',
+            additional_info={'document_name': file.filename}
         )
-        
+
+        return JSONResponse(status_code=200, content={
+            'message': 'Document uploaded and verified',
+            'document_id': new_document.id,
+            'document_name': file.filename,
+            'document_type': document_type,
+            'extraction': verification_results['extraction'],
+            'verification': verification_results['verification']
+        })
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error in upload and verify: {e}")
-        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
+        logger.error(f'Error in upload_and_verify: {e}')
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/verify-request/{request_id}")
 async def verify_scholarship_request(
-    request_id: int,
-    current_user: User = Depends(get_current_user),
+    request_id: str,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Run comprehensive verification on all documents for a scholarship request
+    Run comprehensive verification on all documents for a scholarship request.
     This endpoint:
     1. Retrieves all uploaded documents
     2. Runs all verification checks
@@ -278,13 +262,16 @@ async def verify_scholarship_request(
     4. Generates verification report
     """
     try:
+        # Get user ID from token payload
+        user_id = current_user.get("sub")
+        
         # Get request from database
         request = await db.get(ServiceRequest, request_id)
         if not request:
             raise HTTPException(status_code=404, detail="Request not found")
         
         # Verify user has access
-        if request.user_id != current_user.id and current_user.role.value not in ['admin', 'super_admin']:
+        if request.user_id != user_id and current_user.get("role") not in ['admin', 'super_admin']:
             raise HTTPException(status_code=403, detail="Access denied")
         
         # Get all documents for this request
@@ -448,21 +435,24 @@ async def verify_scholarship_request(
 
 @router.get("/verification-status/{request_id}")
 async def get_verification_status(
-    request_id: int,
-    current_user: User = Depends(get_current_user),
+    request_id: str,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Get verification status and results for a scholarship request
     """
     try:
+        # Get user ID from token payload
+        user_id = current_user.get("sub")
+        
         # Get request
         request = await db.get(ServiceRequest, request_id)
         if not request:
             raise HTTPException(status_code=404, detail="Request not found")
         
         # Verify access
-        if request.user_id != current_user.id and current_user.role.value not in ['admin', 'super_admin']:
+        if request.user_id != user_id and current_user.get("role") not in ['admin', 'super_admin']:
             raise HTTPException(status_code=403, detail="Access denied")
         
         # In production, store verification results in database
@@ -487,7 +477,7 @@ async def get_verification_status(
 
 @router.get("/pending-reviews")
 async def get_pending_reviews(
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -495,7 +485,7 @@ async def get_pending_reviews(
     """
     try:
         # Check admin access
-        if current_user.role.value not in ['admin', 'super_admin']:
+        if current_user.get("role") not in ['admin', 'super_admin']:
             raise HTTPException(status_code=403, detail="Admin access required")
         
         # Query requests under review
@@ -537,10 +527,10 @@ async def get_pending_reviews(
 
 @router.post("/manual-review/{request_id}")
 async def submit_manual_review(
-    request_id: int,
+    request_id: str,
     action: str = Form(...),  # 'approve' or 'reject'
     comments: str = Form(None),
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -548,7 +538,7 @@ async def submit_manual_review(
     """
     try:
         # Check admin access
-        if current_user.role.value not in ['admin', 'super_admin']:
+        if current_user.get("role") not in ['admin', 'super_admin']:
             raise HTTPException(status_code=403, detail="Admin access required")
         
         # Validate action
@@ -566,7 +556,7 @@ async def submit_manual_review(
         else:
             request.status = RequestStatus.REJECTED
         
-        request.assigned_to = current_user.id
+        request.assigned_to = current_user.get("sub")
         
         # Create workflow log
         from app.models import WorkflowLog
@@ -575,14 +565,14 @@ async def submit_manual_review(
             from_status=RequestStatus.UNDER_REVIEW.value,
             to_status=request.status.value,
             action=f"manual_{action}",
-            performed_by=current_user.id,
+            performed_by=current_user.get("sub"),
             comments=comments
         )
         db.add(workflow_log)
         
         await db.commit()
         
-        logger.info(f"Manual review completed for request {request_id}: {action} by user {current_user.id}")
+        logger.info(f"Manual review completed for request {request_id}: {action} by user {current_user.get('sub')}")
         
         return JSONResponse(
             status_code=200,
@@ -590,7 +580,7 @@ async def submit_manual_review(
                 "message": f"Request {action}d successfully",
                 "request_id": request_id,
                 "new_status": request.status.value,
-                "reviewed_by": current_user.id,
+                "reviewed_by": current_user.get("sub"),
                 "comments": comments
             }
         )
@@ -604,8 +594,8 @@ async def submit_manual_review(
 
 @router.get("/verification-report/{request_id}")
 async def get_verification_report(
-    request_id: int,
-    current_user: User = Depends(get_current_user),
+    request_id: str,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -618,8 +608,8 @@ async def get_verification_report(
             raise HTTPException(status_code=404, detail="Request not found")
         
         # Verify access
-        is_owner = request.user_id == current_user.id
-        is_admin = current_user.role.value in ['admin', 'super_admin']
+        is_owner = request.user_id == current_user.get("sub")
+        is_admin = current_user.get("role") in ['admin', 'super_admin']
         
         if not (is_owner or is_admin):
             raise HTTPException(status_code=403, detail="Access denied")
@@ -691,9 +681,9 @@ class AdminDecisionRequest(BaseModel):
 
 @router.post("/admin-decision/{request_id}")
 async def make_admin_decision(
-    request_id: int,
+    request_id: str,
     decision_data: AdminDecisionRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -701,7 +691,7 @@ async def make_admin_decision(
     """
     try:
         # Check admin access
-        if current_user.role.value not in ['admin', 'super_admin']:
+        if current_user.get("role") not in ['admin', 'super_admin']:
             raise HTTPException(status_code=403, detail="Admin access required")
         
         # Get request
@@ -724,7 +714,7 @@ async def make_admin_decision(
         else:
             raise HTTPException(status_code=400, detail="Invalid decision")
         
-        request.assigned_to = current_user.id
+        request.assigned_to = current_user.get("sub")
         request.updated_at = datetime.now()
         
         # Store admin decision in request data
@@ -733,7 +723,7 @@ async def make_admin_decision(
         
         request.request_data['admin_decision'] = {
             "decision": decision_data.decision,
-            "decided_by": current_user.id,
+            "decided_by": current_user.get("sub"),
             "decided_at": datetime.now().isoformat(),
             "comments": decision_data.comments,
             "admin_notes": decision_data.admin_notes
@@ -747,7 +737,7 @@ async def make_admin_decision(
             from_status=old_status,
             to_status=new_status,
             action=f"admin_decision_{decision_data.decision}",
-            performed_by=current_user.id,
+            performed_by=current_user.get("sub"),
             comments=decision_data.comments or f"Admin {decision_data.decision} decision",
             log_metadata={
                 "decision": decision_data.decision,
@@ -758,7 +748,14 @@ async def make_admin_decision(
         db.add(workflow_log)
         await db.commit()
         
-        # TODO: Send notification to user about decision
+        # Send notification to user about decision
+        await notification_service.send_scholarship_status_notification(
+            db=db,
+            user_id=request.user_id,
+            request=request,
+            status_change=decision_data.decision,
+            additional_info={"admin_comments": decision_data.comments}
+        )
         
         return JSONResponse(
             status_code=200,
@@ -767,7 +764,7 @@ async def make_admin_decision(
                 "request_id": request_id,
                 "new_status": new_status,
                 "decision": decision_data.decision,
-                "decided_by": current_user.id,
+                "decided_by": current_user.get("sub"),
                 "timestamp": datetime.now().isoformat()
             }
         )
@@ -776,4 +773,66 @@ async def make_admin_decision(
         raise
     except Exception as e:
         logger.error(f"Error making admin decision: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/notifications")
+async def get_user_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get notifications for the current user
+    """
+    try:
+        notifications = await notification_service.get_user_notifications(
+            db=db,
+            user_id=current_user.get("sub"),
+            unread_only=unread_only,
+            limit=limit
+        )
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "total": len(notifications),
+                "notifications": notifications
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting notifications: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Mark a notification as read
+    """
+    try:
+        success = await notification_service.mark_notification_read(
+            db=db,
+            notification_id=notification_id,
+            user_id=current_user.get("sub")
+        )
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Notification not found")
+        
+        return JSONResponse(
+            status_code=200,
+            content={"message": "Notification marked as read"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error marking notification as read: {e}")
         raise HTTPException(status_code=500, detail=str(e))

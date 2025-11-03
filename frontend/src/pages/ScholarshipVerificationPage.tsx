@@ -180,9 +180,8 @@ const ScholarshipVerificationPage: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('document_type', documentType);
-      formData.append('request_id', String(requestId));
 
-      const response = await api.post('/scholarship-verification/upload-and-verify', formData, {
+      const response = await api.post(`/scholarship-verification/upload/${requestId}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }

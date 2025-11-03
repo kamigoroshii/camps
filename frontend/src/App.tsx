@@ -19,6 +19,8 @@ import AdminReportsPage from './pages/AdminReportsPage'
 import AdminSettingsPage from './pages/AdminSettingsPage'
 import AdminChatPage from './pages/AdminChatPage'
 import ScholarshipPage from './pages/ScholarshipPage'
+import ScholarshipUnifiedPage from './pages/ScholarshipUnifiedPage';
+import MyApplicationsPage from './pages/MyApplicationsPage'
 import ScholarshipVerificationPage from './pages/ScholarshipVerificationPage'
 import AdminScholarshipReviewPage from './pages/AdminScholarshipReviewPage'
 import CamsPage from './pages/CamsPage'
@@ -99,6 +101,7 @@ function App() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="requests" element={<RequestsPage />} />
             <Route path="requests/new" element={<CreateRequestPage />} />
+            <Route path="requests/history" element={<RequestsPage />} />
             <Route path="requests/:id" element={<RequestDetailsPage />} />
             
             {/* Student Services */}
@@ -108,7 +111,8 @@ function App() {
             <Route path="student-services/memo-card" element={<MemoCardPage />} />
             <Route path="student-services/history" element={<RequestsPage />} />
             
-            <Route path="scholarships" element={<ScholarshipPage />} />
+            <Route path="scholarship" element={<ScholarshipUnifiedPage />} />
+            <Route path="scholarship/my-applications" element={<MyApplicationsPage />} />
             <Route path="scholarship-verification" element={<ScholarshipVerificationPage />} />
             <Route path="cams" element={<CamsPage />} />
             <Route path="chat" element={<ChatPage />} />

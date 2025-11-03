@@ -1,6 +1,6 @@
 /**
  * Admin Scholarship Review Page
- * For reviewing flagged scholarship applications requiring manual verification
+ * For reviewing scholarship applications with OCR verification results
  */
 
 import React, { useState, useEffect } from 'react';
@@ -17,7 +17,6 @@ import {
   TableHead,
   TableRow,
   Chip,
-  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -27,74 +26,87 @@ import {
   Card,
   CardContent,
   Grid,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
   LinearProgress,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
+  CircularProgress,
+  Divider,
   FormControl,
-  FormLabel,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
-  Tabs,
-  Tab
+  InputLabel,
+  Select,
+  MenuItem,
+  Badge,
+  Tooltip
 } from '@mui/material';
 import {
   Visibility,
   CheckCircle,
   Cancel,
-  Warning,
-  ExpandMore,
-  Assignment
+  Description,
+  Download,
+  Assessment
 } from '@mui/icons-material';
 import api from '../services/api';
 
-interface PendingRequest {
-  request_id: number;
-  request_number: string;
-  user_id: number;
-  title: string;
+interface Application {
+  request_id: string;
+  application_number: string;
   status: string;
-  priority: string;
-  created_at: string;
-  sla_due_date?: string;
+  submitted_date: string;
+  data: {
+    full_name: string;
+    email: string;
+    phone: string;
+    course: string;
+    year_of_study: string;
+    reason: string;
+  };
+  documents_count?: number;
+}
+
+interface Document {
+  id: string;
+  type: string;
+  filename: string;
+  is_verified: boolean;
+  ocr_text?: string;
+  uploaded_at: string;
 }
 
 interface VerificationDetails {
-  request_id: number;
-  confidence: number;
-  decision: any;
+  success: boolean;
+  request_id: string;
+  application_number: string;
+  overall_score: number | null;
+  status: string;
+  documents: Document[];
   verification_results: any;
-  document_analyses: any[];
-  report: any;
 }
 
 const AdminScholarshipReviewPage: React.FC = () => {
-  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
-  const [selectedRequest, setSelectedRequest] = useState<PendingRequest | null>(null);
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [verificationDetails, setVerificationDetails] = useState<VerificationDetails | null>(null);
   const [openReviewDialog, setOpenReviewDialog] = useState(false);
-  const [reviewAction, setReviewAction] = useState<'approve' | 'reject'>('approve');
-  const [reviewComments, setReviewComments] = useState('');
+  const [openDetailsDialog, setOpenDetailsDialog] = useState(false);
+  const [reviewAction, setReviewAction] = useState<string>('approved');
+  const [reviewNotes, setReviewNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tabValue, setTabValue] = useState(0);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
-    fetchPendingRequests();
+    fetchApplications();
   }, []);
 
-  const fetchPendingRequests = async () => {
+  const fetchApplications = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const response = await api.get('/scholarship-verification/pending-reviews');
-      setPendingRequests(response.data.requests || []);
+      const response = await api.get('/scholarship-verification/admin/pending');
+      setApplications(response.data.applications || []);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to fetch pending requests');
+      setError(err.response?.data?.detail || 'Failed to fetch applications');
     } finally {
       setLoading(false);
     }

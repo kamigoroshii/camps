@@ -67,7 +67,7 @@ const navigationItems: NavItem[] = [
   { title: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
   { 
     title: 'Student Service Center', 
-    path: '/requests', 
+    path: '/student-services', 
     icon: <SchoolIcon />,
     subItems: [
       { title: 'Create Request', path: '/requests/new', icon: <CertificateIcon /> },
@@ -75,16 +75,15 @@ const navigationItems: NavItem[] = [
       { title: 'Certificate Requests', path: '/student-services/certificates', icon: <CertificateIcon /> },
       { title: 'Bus Pass', path: '/student-services/bus-pass', icon: <BusIcon /> },
       { title: 'Memo Card', path: '/student-services/memo-card', icon: <MemoIcon /> },
-      { title: 'Request History', path: '/requests', icon: <HistoryIcon /> },
+      { title: 'Request History', path: '/requests/history', icon: <HistoryIcon /> },
     ]
   },
   { 
-    title: 'Scholarship Department', 
-    path: '/scholarships', 
+    title: 'Scholarship Portal', 
+    path: '/scholarship', 
     icon: <ScholarshipIcon />,
     subItems: [
-      { title: 'Scholarship Applications', path: '/scholarships', icon: <ScholarshipIcon /> },
-      { title: 'Document Verification', path: '/scholarship-verification', icon: <VerificationIcon /> },
+      { title: 'Unified Scholarship Portal', path: '/scholarship', icon: <ScholarshipIcon /> },
     ]
   },
   { title: 'CAMS Department', path: '/cams', icon: <CamsIcon /> },

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Enum as SQLEnum, JSON
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Enum as SQLEnum, JSON, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -25,7 +25,7 @@ class User(Base):
     """User model"""
     __tablename__ = "users"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(64), primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
     username = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=True)  # Nullable for SSO users
@@ -107,10 +107,10 @@ class ServiceRequest(Base):
     """Service request model"""
     __tablename__ = "service_requests"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String(64), primary_key=True, index=True)
     request_number = Column(String(50), unique=True, index=True, nullable=False)
     
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(String(64), ForeignKey("users.id"), nullable=False)
     request_type = Column(SQLEnum(RequestType), nullable=False)
     status = Column(SQLEnum(RequestStatus), default=RequestStatus.DRAFT, nullable=False)
     priority = Column(SQLEnum(Priority), default=Priority.MEDIUM, nullable=False)
@@ -118,8 +118,9 @@ class ServiceRequest(Base):
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     request_data = Column(JSON, nullable=True)  # Store form-specific data
+    verification_score = Column(Float, nullable=True)  # Scholarship verification score
     
-    assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)
+    assigned_to = Column(String(64), ForeignKey("users.id"), nullable=True)
     department = Column(String(100), nullable=True)
     
     sla_due_date = Column(DateTime(timezone=True), nullable=True)
@@ -143,8 +144,8 @@ class Document(Base):
     """Document model"""
     __tablename__ = "documents"
     
-    id = Column(Integer, primary_key=True, index=True)
-    request_id = Column(Integer, ForeignKey("service_requests.id"), nullable=False)
+    id = Column(String(64), primary_key=True, index=True)
+    request_id = Column(String(64), ForeignKey("service_requests.id"), nullable=False)
     
     filename = Column(String(255), nullable=False)
     original_filename = Column(String(255), nullable=False)
@@ -156,7 +157,7 @@ class Document(Base):
     is_verified = Column(Boolean, default=False)
     ocr_text = Column(Text, nullable=True)
     
-    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    uploaded_by = Column(String(64), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
@@ -171,14 +172,14 @@ class WorkflowLog(Base):
     """Workflow log model for tracking request progress"""
     __tablename__ = "workflow_logs"
     
-    id = Column(Integer, primary_key=True, index=True)
-    request_id = Column(Integer, ForeignKey("service_requests.id"), nullable=False)
+    id = Column(String(64), primary_key=True, index=True)
+    request_id = Column(String(64), ForeignKey("service_requests.id"), nullable=False)
     
     from_status = Column(String(50), nullable=True)
     to_status = Column(String(50), nullable=False)
     action = Column(String(100), nullable=False)
     
-    performed_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    performed_by = Column(String(64), ForeignKey("users.id"), nullable=False)
     comments = Column(Text, nullable=True)
     log_metadata = Column(JSON, nullable=True)
     
@@ -196,10 +197,10 @@ class Comment(Base):
     """Comment model"""
     __tablename__ = "comments"
     
-    id = Column(Integer, primary_key=True, index=True)
-    request_id = Column(Integer, ForeignKey("service_requests.id"), nullable=False)
+    id = Column(String(64), primary_key=True, index=True)
+    request_id = Column(String(64), ForeignKey("service_requests.id"), nullable=False)
     
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(String(64), ForeignKey("users.id"), nullable=False)
     content = Column(Text, nullable=False)
     is_internal = Column(Boolean, default=False)  # Internal admin comments
     
@@ -218,15 +219,15 @@ class Notification(Base):
     """Notification model"""
     __tablename__ = "notifications"
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    id = Column(String(64), primary_key=True, index=True)
+    user_id = Column(String(64), ForeignKey("users.id"), nullable=False)
     
     title = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
     notification_type = Column(String(50), nullable=False)  # email, sms, push, in_app
     
     is_read = Column(Boolean, default=False)
-    request_id = Column(Integer, ForeignKey("service_requests.id"), nullable=True)
+    request_id = Column(String(64), ForeignKey("service_requests.id"), nullable=True)
     
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
     read_at = Column(DateTime(timezone=True), nullable=True)
@@ -242,12 +243,12 @@ class AuditLog(Base):
     """Audit log model"""
     __tablename__ = "audit_logs"
     
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    id = Column(String(64), primary_key=True, index=True)
+    user_id = Column(String(64), ForeignKey("users.id"), nullable=True)
     
     action = Column(String(100), nullable=False)
     entity_type = Column(String(50), nullable=False)
-    entity_id = Column(Integer, nullable=True)
+    entity_id = Column(String(64), nullable=True)
     
     old_values = Column(JSON, nullable=True)
     new_values = Column(JSON, nullable=True)
