@@ -30,13 +30,17 @@ async def lifespan(app: FastAPI):
     logger.info("Database initialized")
     
     # Initialize RAG services
-    try:
-        logger.info("Initializing RAG services...")
-        await rag_service.initialize()
-        logger.info("RAG services initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize RAG services: {e}")
-        logger.warning("Continuing without RAG functionality")
+    logger.info(f"ENABLE_CHAT_ASSISTANT setting: {settings.ENABLE_CHAT_ASSISTANT} (type: {type(settings.ENABLE_CHAT_ASSISTANT)})")
+    if settings.ENABLE_CHAT_ASSISTANT:
+        try:
+            logger.info("Initializing RAG services...")
+            await rag_service.initialize()
+            logger.info("RAG services initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize RAG services: {e}")
+            logger.warning("Continuing without RAG functionality")
+    else:
+        logger.info("RAG functionality is disabled via ENABLE_CHAT_ASSISTANT setting")
     
     yield
     

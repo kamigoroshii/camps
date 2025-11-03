@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 interface User {
-  id: number
+  id: string | number  // MongoDB uses string IDs
   email: string
   username: string
   full_name: string

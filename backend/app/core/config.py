@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     
     @property
     def DATABASE_URL(self) -> str:
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        return "sqlite+aiosqlite:///./test.db"  # Use SQLite for development
     
     # MongoDB
     MONGO_USER: str
@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     
     @property
     def MONGODB_URL(self) -> str:
+        # For local development without auth
+        if self.ENVIRONMENT == "development":
+            return f"mongodb://{self.MONGO_HOST}:{self.MONGO_PORT}"
+        # For production with auth
         return f"mongodb://{self.MONGO_USER}:{self.MONGO_PASSWORD}@{self.MONGO_HOST}:{self.MONGO_PORT}"
     
     # Redis

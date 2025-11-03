@@ -46,7 +46,7 @@ class UserResponse(UserBase):
 
 # Authentication Schemas
 class LoginRequest(BaseModel):
-    username: str
+    username_or_email: str  # Updated to support both username and email
     password: str
 
 
@@ -54,11 +54,19 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    user: UserResponse
+    user: dict  # Updated to support both SQLAlchemy and MongoDB user objects
 
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+
+class UserRegistrationResponse(BaseModel):
+    message: str
+    user_id: str
+    email: str
+    username: str
+    status: str
 
 
 # Service Request Schemas

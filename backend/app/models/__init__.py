@@ -180,7 +180,7 @@ class WorkflowLog(Base):
     
     performed_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     comments = Column(Text, nullable=True)
-    metadata = Column(JSON, nullable=True)
+    log_metadata = Column(JSON, nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     

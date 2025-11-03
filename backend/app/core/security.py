@@ -6,8 +6,8 @@ from fastapi import HTTPException, Security, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.config import settings
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing - using argon2 instead of bcrypt (no 72 byte limit)
+pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 
 # JWT Bearer token
 security = HTTPBearer()
@@ -15,12 +15,25 @@ security = HTTPBearer()
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password against hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    # Truncate to 72 bytes for bcrypt (not characters)
+    password_bytes = plain_password.encode('utf-8')[:72]
+    password_safe = password_bytes.decode('utf-8', errors='ignore')
+    return pwd_context.verify(password_safe, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
     """Generate password hash"""
-    return pwd_context.hash(password)
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Truncate to 72 bytes for bcrypt (not characters)
+    password_bytes = password.encode('utf-8')[:72]
+    password_safe = password_bytes.decode('utf-8', errors='ignore')
+    
+    logger.info(f"Original password length: {len(password)} chars, {len(password.encode('utf-8'))} bytes")
+    logger.info(f"Truncated password length: {len(password_safe)} chars, {len(password_safe.encode('utf-8'))} bytes")
+    
+    return pwd_context.hash(password_safe)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -82,6 +95,38 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
         )
     
     return payload
+
+
+async def get_current_mongo_user(credentials: HTTPAuthorizationCredentials = Security(security)):
+    """Get current authenticated MongoDB user from token"""
+    from app.services.mongo_user_service import mongo_user_service
+    from app.models.mongo_models import MongoUser
+    
+    token = credentials.credentials
+    payload = decode_token(token)
+    
+    if payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token type"
+        )
+    
+    user_id: str = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials"
+        )
+    
+    # Get user from MongoDB
+    user = await mongo_user_service.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
+    
+    return user
 
 
 def require_role(required_roles: Union[str, list]):

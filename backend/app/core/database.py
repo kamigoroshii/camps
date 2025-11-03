@@ -1,7 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from motor.motor_asyncio import AsyncIOMotorClient
-import redis.asyncio as aioredis
 from app.core.config import settings
 import logging
 
@@ -31,13 +30,11 @@ AsyncSessionLocal = async_sessionmaker(
 mongo_client: AsyncIOMotorClient = None
 mongo_db = None
 
-# Redis Client
-redis_client = None
 
 
 async def init_db():
     """Initialize database connections"""
-    global mongo_client, mongo_db, redis_client
+    global mongo_client, mongo_db
     
     try:
         # Initialize MongoDB
@@ -45,14 +42,6 @@ async def init_db():
         mongo_db = mongo_client[settings.MONGO_DB]
         logger.info("MongoDB connected successfully")
         
-        # Initialize Redis
-        redis_client = await aioredis.from_url(
-            settings.REDIS_URL,
-            encoding="utf-8",
-            decode_responses=True
-        )
-        await redis_client.ping()
-        logger.info("Redis connected successfully")
         
         # Create PostgreSQL tables
         async with engine.begin() as conn:
@@ -66,16 +55,13 @@ async def init_db():
 
 async def close_db():
     """Close database connections"""
-    global mongo_client, redis_client
+    global mongo_client
     
     try:
         if mongo_client:
             mongo_client.close()
             logger.info("MongoDB connection closed")
         
-        if redis_client:
-            await redis_client.close()
-            logger.info("Redis connection closed")
         
         await engine.dispose()
         logger.info("PostgreSQL connection closed")
@@ -98,6 +84,3 @@ def get_mongo_db():
     return mongo_db
 
 
-async def get_redis():
-    """Get Redis client instance"""
-    return redis_client

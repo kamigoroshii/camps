@@ -13,21 +13,18 @@ import {
   CircularProgress,
   Grid,
   Avatar,
-  Chip,
-  LinearProgress,
 } from '@mui/material'
 import {
   Visibility,
   VisibilityOff,
   PersonAdd as PersonAddIcon,
   CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon,
   Login as LoginIcon,
 } from '@mui/icons-material'
 import { useFormik } from 'formik'
 import * as yup from 'yup'
 import { toast } from 'react-toastify'
-// import api from '../services/api' // Uncomment when backend is ready
+import api from '../services/api'
 import { palette, gradients } from '../theme'
 
 const validationSchema = yup.object({
@@ -48,11 +45,7 @@ const validationSchema = yup.object({
     .required('Email is required'),
   password: yup
     .string()
-    .min(8, 'Password must be at least 8 characters')
-    .matches(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .matches(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .matches(/[0-9]/, 'Password must contain at least one number')
-    .matches(/[@$!%*?&#]/, 'Password must contain at least one special character (@$!%*?&#)')
+    .max(72, 'Password cannot be longer than 72 characters')
     .required('Password is required'),
   confirmPassword: yup
     .string()
@@ -66,32 +59,6 @@ const validationSchema = yup.object({
     .required('Student ID is required'),
 })
 
-// Password strength calculation
-const calculatePasswordStrength = (password: string): number => {
-  let strength = 0
-  if (password.length >= 8) strength += 20
-  if (password.length >= 12) strength += 10
-  if (/[a-z]/.test(password)) strength += 20
-  if (/[A-Z]/.test(password)) strength += 20
-  if (/[0-9]/.test(password)) strength += 15
-  if (/[@$!%*?&#]/.test(password)) strength += 15
-  return Math.min(strength, 100)
-}
-
-const getPasswordStrengthLabel = (strength: number): string => {
-  if (strength < 30) return 'Weak'
-  if (strength < 60) return 'Fair'
-  if (strength < 80) return 'Good'
-  return 'Strong'
-}
-
-const getPasswordStrengthColor = (strength: number): 'error' | 'warning' | 'info' | 'success' => {
-  if (strength < 30) return 'error'
-  if (strength < 60) return 'warning'
-  if (strength < 80) return 'info'
-  return 'success'
-}
-
 export default function RegisterPage() {
   const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
@@ -99,7 +66,6 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [passwordStrength, setPasswordStrength] = useState(0)
 
   const formik = useFormik({
     initialValues: {
@@ -116,28 +82,16 @@ export default function RegisterPage() {
       setError(null)
 
       try {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1500))
-
-        // Mock registration - Just validate and show success
-        // In real app, this would create the account in the backend
-        console.log('Mock registration for:', values.email)
-
-        setSuccess(true)
-        toast.success('Account created successfully! Please sign in.')
-
-        // Uncomment below when backend is ready:
-        /*
-        await api.post('/auth/register', {
+        // Real backend registration
+        await api.post('/mongo-auth/register', {
           full_name: values.full_name,
           username: values.username,
           email: values.email,
           password: values.password,
           student_id: values.student_id,
         })
-        */
-        
-        // Redirect to login after 2 seconds
+        setSuccess(true)
+        toast.success('Account created successfully! Please sign in.')
         setTimeout(() => {
           navigate('/login')
         }, 2000)
@@ -154,12 +108,6 @@ export default function RegisterPage() {
     },
   })
 
-  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    formik.handleChange(e)
-    const strength = calculatePasswordStrength(e.target.value)
-    setPasswordStrength(strength)
-  }
-
   const handleClickShowPassword = () => {
     setShowPassword(!showPassword)
   }
@@ -171,15 +119,6 @@ export default function RegisterPage() {
   const handleMouseDownPassword = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault()
   }
-
-  // Password requirements checks
-  const passwordRequirements = [
-    { label: 'At least 8 characters', met: formik.values.password.length >= 8 },
-    { label: 'One lowercase letter', met: /[a-z]/.test(formik.values.password) },
-    { label: 'One uppercase letter', met: /[A-Z]/.test(formik.values.password) },
-    { label: 'One number', met: /[0-9]/.test(formik.values.password) },
-    { label: 'One special character', met: /[@$!%*?&#]/.test(formik.values.password) },
-  ]
 
   if (success) {
     return (
@@ -356,7 +295,7 @@ export default function RegisterPage() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
                   value={formik.values.password}
-                  onChange={handlePasswordChange}
+                  onChange={formik.handleChange}
                   onBlur={formik.handleBlur}
                   error={formik.touched.password && Boolean(formik.errors.password)}
                   helperText={formik.touched.password && formik.errors.password}
@@ -377,60 +316,6 @@ export default function RegisterPage() {
                     ),
                   }}
                 />
-
-                {/* Password Strength Indicator */}
-                {formik.values.password && (
-                  <Box sx={{ mt: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        Password Strength:
-                      </Typography>
-                      <Chip
-                        label={getPasswordStrengthLabel(passwordStrength)}
-                        size="small"
-                        color={getPasswordStrengthColor(passwordStrength)}
-                        sx={{ fontWeight: 600, fontSize: '0.7rem' }}
-                      />
-                    </Box>
-                    <LinearProgress
-                      variant="determinate"
-                      value={passwordStrength}
-                      color={getPasswordStrengthColor(passwordStrength)}
-                      sx={{ height: 6, borderRadius: 3 }}
-                    />
-                  </Box>
-                )}
-
-                {/* Password Requirements */}
-                {formik.touched.password && formik.values.password && (
-                  <Box sx={{ mt: 2 }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                      Password Requirements:
-                    </Typography>
-                    <Grid container spacing={1}>
-                      {passwordRequirements.map((req, index) => (
-                        <Grid item xs={12} sm={6} key={index}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            {req.met ? (
-                              <CheckCircleIcon sx={{ fontSize: 16, color: 'success.main' }} />
-                            ) : (
-                              <CancelIcon sx={{ fontSize: 16, color: 'error.main' }} />
-                            )}
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: req.met ? 'success.main' : 'text.secondary',
-                                fontWeight: req.met ? 600 : 400,
-                              }}
-                            >
-                              {req.label}
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      ))}
-                    </Grid>
-                  </Box>
-                )}
               </Grid>
 
               {/* Confirm Password */}

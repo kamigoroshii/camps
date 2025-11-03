@@ -28,7 +28,7 @@ import {
 import { useFormik } from 'formik'
 import * as yup from 'yup'
 import { toast } from 'react-toastify'
-// import api from '../services/api' // Uncomment when backend is ready
+import api from '../services/api'
 import { useAuthStore } from '../stores/authStore'
 import { palette, gradients } from '../theme'
 
@@ -39,7 +39,7 @@ const validationSchema = yup.object({
     .required('Email is required'),
   password: yup
     .string()
-    .min(6, 'Password must be at least 6 characters')
+    .max(72, 'Password cannot be longer than 72 characters')
     .required('Password is required'),
 })
 
@@ -62,56 +62,18 @@ export default function LoginPage() {
       setError(null)
 
       try {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1000))
-
-        // Mock JWT authentication
-        if (values.email && values.password.length >= 6) {
-          // Create mock user data
-          const mockUser = {
-            id: 1,
-            email: values.email,
-            username: values.email.split('@')[0],
-            full_name: values.email === 'demo@example.com' ? 'Demo User' : 'John Doe',
-            role: values.email === 'admin@example.com' ? 'admin' : 'student',
-            status: 'active',
-          }
-
-          // Mock JWT tokens
-          const mockAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-access-token-' + Date.now()
-          const mockRefreshToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-refresh-token-' + Date.now()
-
-          // Store remember me preference
-          if (rememberMe) {
-            localStorage.setItem('rememberMe', 'true')
-          }
-
-          login(mockUser, mockAccessToken, mockRefreshToken)
-          toast.success(`Welcome back, ${mockUser.full_name}!`)
-          navigate('/dashboard')
-        } else {
-          throw new Error('Invalid credentials')
-        }
-
-        // TODO: Uncomment when backend OAuth 2.0 + JWT is ready
-        /*
-        const response = await api.post('/auth/login', {
-          email: values.email,
+        // Real backend authentication
+        const response = await api.post('/mongo-auth/login', {
+          username_or_email: values.email,
           password: values.password,
         })
-
         const { user, access_token, refresh_token } = response.data
-
-        // Store JWT tokens
         login(user, access_token, refresh_token)
-        
         if (rememberMe) {
           localStorage.setItem('rememberMe', 'true')
         }
-
-        toast.success(`Welcome back, ${user.full_name}!`)
+        toast.success(`Welcome back, ${user.full_name || user.username || user.email}!`)
         navigate('/dashboard')
-        */
       } catch (err: any) {
         const errorMessage =
           err.response?.data?.detail ||

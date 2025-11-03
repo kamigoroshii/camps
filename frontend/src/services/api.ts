@@ -35,7 +35,7 @@ api.interceptors.response.use(
       try {
         const refreshToken = useAuthStore.getState().refreshToken
         if (refreshToken) {
-          const response = await api.post('/auth/refresh', { refresh_token: refreshToken })
+          const response = await api.post('/mongo-auth/refresh', { refresh_token: refreshToken })
           const { access_token, refresh_token } = response.data
 
           useAuthStore.getState().login(
