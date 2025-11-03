@@ -1,305 +1,167 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
-  Box,
-  Container,
-  Paper,
-  Typography,
-  Button,
-  Grid,
-  Card,
-  CardContent,
-  Alert,
-  Chip,
-  Divider,
+  Container, Typography, Button, Paper,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  TextField, CircularProgress, Alert
 } from '@mui/material'
+import { Add as AddIcon, Download as DownloadIcon } from '@mui/icons-material'
+import { useAuthStore } from '../stores/authStore'
 import {
-  ContactMail as MemoIcon,
-  CheckCircle as CheckCircleIcon,
-  School as SchoolIcon,
-  CalendarMonth as CalendarIcon,
-  Download as DownloadIcon,
-  Print as PrintIcon,
-} from '@mui/icons-material'
-
-interface MemoCard {
-  id: string
-  semester: string
-  academicYear: string
-  issueDate: string
-  expiryDate: string
-  status: 'active' | 'expired'
-}
+  getMemoCards,
+  createMemoCard,
+  downloadMemoDocument,
+  MemoCard,
+} from '../services/memoCardApi'
 
 export default function MemoCardPage() {
-  const [showSuccess, setShowSuccess] = useState(false)
+  const [memos, setMemos] = useState<MemoCard[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [showDialog, setShowDialog] = useState(false)
+  const [semester, setSemester] = useState('')
+  const [academicYear, setAcademicYear] = useState('')
+  const [document, setDocument] = useState<File | null>(null)
+  const { user } = useAuthStore()
+  const userId = (user?.id ?? '').toString()
 
-  const [currentMemoCard] = useState<MemoCard>({
-    id: 'MC-2024-STU2024001',
-    semester: '4th Semester',
-    academicYear: '2024-2025',
-    issueDate: '2024-11-01',
-    expiryDate: '2025-04-30',
-    status: 'active',
-  })
+  useEffect(() => { fetchMemos() }, [])
 
-  const handleRequestNew = () => {
-    setShowSuccess(true)
-    setTimeout(() => {
-      setShowSuccess(false)
-    }, 3000)
+  const fetchMemos = async () => {
+    setLoading(true)
+    try {
+      if (!userId) throw new Error('Not logged in')
+      const data = await getMemoCards(userId)
+      setMemos(data)
+      setError('')
+    } catch (err) {
+      setError('Unable to load memos')
+    }
+    setLoading(false)
   }
 
-  const getStatusColor = (status: string) => {
-    return status === 'active' ? '#2e7d32' : '#757575'
+  const createMemo = async () => {
+    if (!semester || !academicYear) return setError('Fill all fields')
+    setLoading(true)
+    try {
+      if (!userId) throw new Error('Not logged in')
+      await createMemoCard({
+        user_id: userId,
+        semester,
+        academic_year: academicYear,
+        document: document ?? undefined,
+      })
+      
+      setShowDialog(false)
+      setSemester('')
+      setAcademicYear('')
+      setDocument(null)
+      fetchMemos()
+      setError('')
+    } catch (err) {
+      setError('Failed to create memo')
+    }
+    setLoading(false)
   }
 
-  const getStatusBgColor = (status: string) => {
-    return status === 'active' ? '#e8f5e9' : '#f5f5f5'
+  const downloadMemo = async (id: string) => {
+    try {
+      const blob = await downloadMemoDocument(id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'memo.pdf'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError('Download failed')
+    }
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 700, color: '#95A37F', mb: 1 }}>
-          Memo Card Management
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          View and download your academic memo card
-        </Typography>
-      </Box>
+    <Container maxWidth="md" sx={{ py: 4 }}>
+      <Typography variant="h4" sx={{ mb: 2, color: '#636b2f' }}>
+        Memo Card Portal
+      </Typography>
 
-      {showSuccess && (
-        <Alert severity="success" sx={{ mb: 3 }}>
-          Memo card request submitted! Your new memo card will be available within 2 working days.
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+          {error} <Button size="small" onClick={fetchMemos}>Retry</Button>
         </Alert>
       )}
 
-      <Grid container spacing={3}>
-        {/* Current Memo Card */}
-        <Grid item xs={12} lg={8}>
-          <Paper sx={{ p: 3, borderRadius: 2, border: '2px solid #95A37F', bgcolor: '#f9faf7' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'between', alignItems: 'flex-start', mb: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <MemoIcon sx={{ fontSize: 48, color: '#95A37F' }} />
-                <Box>
-                  <Typography variant="h5" sx={{ fontWeight: 600, color: '#636b2f' }}>
-                    Current Memo Card
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Card ID: {currentMemoCard.id}
-                  </Typography>
-                </Box>
-              </Box>
-              <Chip
-                icon={<CheckCircleIcon sx={{ fontSize: 18 }} />}
-                label={currentMemoCard.status.toUpperCase()}
-                sx={{
-                  bgcolor: getStatusBgColor(currentMemoCard.status),
-                  color: getStatusColor(currentMemoCard.status),
-                  fontWeight: 600,
-                  fontSize: '0.75rem',
-                  border: `1.5px solid ${getStatusColor(currentMemoCard.status)}`,
-                  '& .MuiChip-icon': {
-                    color: getStatusColor(currentMemoCard.status),
-                  },
-                }}
-              />
-            </Box>
+      {loading && <CircularProgress sx={{ mb: 2, color: '#95A37F' }} />}
 
-            <Divider sx={{ my: 3 }} />
+      {memos.map((memo) => {
+        const memoId = (memo as any).id || (memo as any)._id || ''
+        return (
+        <Paper key={memoId || Math.random()} sx={{ p: 2, mb: 2 }}>
+          <Typography>Semester: {memo.semester}</Typography>
+          <Typography>Academic Year: {memo.academic_year}</Typography>
+          {memo.status && (
+            <Typography>Status: {memo.status}</Typography>
+          )}
+          <Button
+            startIcon={<DownloadIcon />}
+            onClick={() => memoId && downloadMemo(memoId)}
+            disabled={!memoId}
+            sx={{ mt: 1, bgcolor: '#95A37F', color: 'white' }}
+          >
+            Download
+          </Button>
+        </Paper>)
+      })}
 
-            {/* Memo Card Details */}
-            <Grid container spacing={3}>
-              <Grid item xs={12} sm={6}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <SchoolIcon sx={{ color: '#95A37F', fontSize: 20 }} />
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Academic Year
-                  </Typography>
-                </Box>
-                <Typography variant="body1" color="text.secondary" sx={{ pl: 4 }}>
-                  {currentMemoCard.academicYear}
-                </Typography>
-              </Grid>
+      {!loading && memos.length === 0 && (
+        <Typography sx={{ mb: 2 }}>No memos found</Typography>
+      )}
 
-              <Grid item xs={12} sm={6}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <SchoolIcon sx={{ color: '#95A37F', fontSize: 20 }} />
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Semester
-                  </Typography>
-                </Box>
-                <Typography variant="body1" color="text.secondary" sx={{ pl: 4 }}>
-                  {currentMemoCard.semester}
-                </Typography>
-              </Grid>
+      <Button
+        startIcon={<AddIcon />}
+        variant="contained"
+        onClick={() => setShowDialog(true)}
+        sx={{ bgcolor: '#95A37F' }}
+      >
+        Request New Memo
+      </Button>
 
-              <Grid item xs={12} sm={6}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <CalendarIcon sx={{ color: '#95A37F', fontSize: 20 }} />
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Issue Date
-                  </Typography>
-                </Box>
-                <Typography variant="body1" color="text.secondary" sx={{ pl: 4 }}>
-                  {new Date(currentMemoCard.issueDate).toLocaleDateString()}
-                </Typography>
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <CalendarIcon sx={{ color: '#95A37F', fontSize: 20 }} />
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Valid Until
-                  </Typography>
-                </Box>
-                <Typography variant="body1" color="text.secondary" sx={{ pl: 4 }}>
-                  {new Date(currentMemoCard.expiryDate).toLocaleDateString()}
-                </Typography>
-              </Grid>
-            </Grid>
-
-            <Divider sx={{ my: 3 }} />
-
-            {/* Action Buttons */}
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              <Button
-                variant="contained"
-                startIcon={<DownloadIcon />}
-                sx={{
-                  bgcolor: '#95A37F',
-                  color: 'white',
-                  fontWeight: 600,
-                  px: 3,
-                  '&:hover': { bgcolor: '#7a8566' },
-                  '&:focus': { outline: '2px solid #95A37F', outlineOffset: 2 },
-                }}
-              >
-                Download PDF
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<PrintIcon />}
-                sx={{
-                  borderColor: '#95A37F',
-                  color: '#95A37F',
-                  fontWeight: 600,
-                  borderWidth: 2,
-                  px: 3,
-                  '&:hover': {
-                    borderColor: '#95A37F',
-                    bgcolor: '#e8f0e0',
-                    borderWidth: 2,
-                  },
-                  '&:focus': { outline: '2px solid #95A37F', outlineOffset: 2 },
-                }}
-              >
-                Print Card
-              </Button>
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* Information & Actions */}
-        <Grid item xs={12} lg={4}>
-          <Paper sx={{ p: 3, borderRadius: 2, mb: 3 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: '#636b2f', mb: 2 }}>
-              About Memo Card
-            </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
-              The memo card contains important academic information including:
-            </Typography>
-            <Box component="ul" sx={{ pl: 2, mt: 1 }}>
-              <Typography component="li" variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Student identification details
-              </Typography>
-              <Typography component="li" variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Current semester information
-              </Typography>
-              <Typography component="li" variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Academic calendar
-              </Typography>
-              <Typography component="li" variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                Important college contacts
-              </Typography>
-            </Box>
-          </Paper>
-
-          <Paper sx={{ p: 3, borderRadius: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: '#636b2f', mb: 2 }}>
-              Request New Card
-            </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
-              Need a replacement or new memo card? Request one here.
-            </Typography>
-            <Button
-              fullWidth
-              variant="contained"
-              onClick={handleRequestNew}
-              sx={{
-                bgcolor: '#95A37F',
-                color: 'white',
-                py: 1.5,
-                fontWeight: 600,
-                '&:hover': { bgcolor: '#7a8566' },
-                '&:focus': { outline: '2px solid #95A37F', outlineOffset: 2 },
-              }}
-            >
-              Request New Memo Card
-            </Button>
-            <Alert severity="info" sx={{ mt: 2 }}>
-              Processing fee: ₹50 for replacement cards
-            </Alert>
-          </Paper>
-        </Grid>
-
-        {/* Usage Guidelines */}
-        <Grid item xs={12}>
-          <Paper sx={{ p: 3, borderRadius: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600, color: '#636b2f', mb: 2 }}>
-              Important Guidelines
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} md={4}>
-                <Card sx={{ height: '100%', border: '1px solid #E0E0E0' }}>
-                  <CardContent>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                      Always Carry
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Keep your memo card with you at all times on campus for identification purposes.
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Card sx={{ height: '100%', border: '1px solid #E0E0E0' }}>
-                  <CardContent>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                      Lost or Damaged
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Report immediately to the Student Services office if your card is lost or damaged.
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Card sx={{ height: '100%', border: '1px solid #E0E0E0' }}>
-                  <CardContent>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                      Validity Period
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Memo card is valid for one semester. Renew at the beginning of each semester.
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Paper>
-        </Grid>
-      </Grid>
+      <Dialog open={showDialog} onClose={() => setShowDialog(false)}>
+        <DialogTitle>New Memo Request</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <TextField
+            fullWidth
+            label="Semester"
+            value={semester}
+            onChange={(e) => setSemester(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Academic Year"
+            value={academicYear}
+            onChange={(e) => setAcademicYear(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <Button variant="outlined" component="label" fullWidth>
+            {document ? document.name : 'Upload Document (Optional)'}
+            <input
+              type="file"
+              hidden
+              onChange={(e) => setDocument(e.target.files?.[0] || null)}
+            />
+          </Button>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowDialog(false)}>Cancel</Button>
+          <Button
+            onClick={createMemo}
+            disabled={loading}
+            variant="contained"
+            sx={{ bgcolor: '#95A37F' }}
+          >
+            {loading ? <CircularProgress size={20} /> : 'Submit'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   )
 }

@@ -100,6 +100,23 @@ async def submit_application(
         db.add(service_request)
         await db.commit()
         
+        # Send notification about application submission
+        try:
+            from app.services.notification_service import notification_service
+            
+            user_id = int(current_user.get("sub")) if isinstance(current_user.get("sub"), str) else current_user.get("sub")
+            
+            await notification_service.send_scholarship_status_notification(
+                db=db,
+                user_id=user_id,
+                request=service_request,
+                status_change="submitted",
+                additional_info=None
+            )
+            
+        except Exception as notif_error:
+            logger.error(f"Failed to send submission notification: {notif_error}")
+        
         return ApplicationResponse(
             success=True,
             message="Application submitted successfully",
@@ -244,6 +261,27 @@ async def upload_document(
             document.ocr_text = f"Verification failed: {str(e)}"
         
         await db.commit()
+        
+        # Send notification about document upload
+        try:
+            from app.services.notification_service import notification_service
+            
+            user_id = int(service_request.user_id) if isinstance(service_request.user_id, str) else service_request.user_id
+            
+            additional_info = {
+                'document_name': document_type
+            }
+            
+            await notification_service.send_scholarship_status_notification(
+                db=db,
+                user_id=user_id,
+                request=service_request,
+                status_change="document_uploaded",
+                additional_info=additional_info
+            )
+            
+        except Exception as notif_error:
+            logger.error(f"Failed to send document upload notification: {notif_error}")
         
         verification_status = "verified" if document.is_verified else "pending_review"
         
@@ -584,15 +622,48 @@ async def update_application_status(
         if not service_request:
             raise HTTPException(status_code=404, detail="Application not found")
         
+        # Store old status for logging
+        old_status = service_request.status
+        
+        # Update status
         service_request.status = status
         if notes:
             service_request.notes = notes
         
         await db.commit()
         
+        # Send notification to the user
+        try:
+            from app.services.notification_service import notification_service
+            
+            # Get user_id as integer
+            user_id = int(service_request.user_id) if isinstance(service_request.user_id, str) else service_request.user_id
+            
+            # Prepare additional info
+            additional_info = {}
+            if notes:
+                additional_info['admin_comments'] = notes
+            
+            # Send notification based on the new status
+            await notification_service.send_scholarship_status_notification(
+                db=db,
+                user_id=user_id,
+                request=service_request,
+                status_change=status,
+                additional_info=additional_info
+            )
+            
+            logger.info(f"Notification sent to user {user_id} for status change: {old_status} -> {status}")
+            
+        except Exception as notif_error:
+            # Log error but don't fail the request
+            logger.error(f"Failed to send notification: {notif_error}")
+        
         return {
             "success": True,
-            "message": f"Application status updated to {status}"
+            "message": f"Application status updated to {status}",
+            "application_number": service_request.request_number,
+            "new_status": status
         }
         
     except HTTPException:

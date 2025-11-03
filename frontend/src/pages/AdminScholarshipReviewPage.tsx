@@ -34,7 +34,9 @@ import {
   Select,
   MenuItem,
   Badge,
-  Tooltip
+  Tooltip,
+  IconButton,
+  TableRow as MuiTableRow
 } from '@mui/material';
 import {
   Visibility,
@@ -42,7 +44,8 @@ import {
   Cancel,
   Description,
   Download,
-  Assessment
+  Assessment,
+  Refresh
 } from '@mui/icons-material';
 import api from '../services/api';
 
@@ -91,9 +94,9 @@ const AdminScholarshipReviewPage: React.FC = () => {
   const [reviewNotes, setReviewNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
     fetchApplications();
@@ -112,414 +115,406 @@ const AdminScholarshipReviewPage: React.FC = () => {
     }
   };
 
-  const fetchVerificationDetails = async (requestId: number) => {
-    setLoading(true);
+  const fetchVerificationDetails = async (requestId: string) => {
+    setLoadingDetails(true);
     try {
-      const response = await api.get(`/scholarship-verification/verification-report/${requestId}`);
+      const response = await api.get(`/scholarship-verification/verification-details/${requestId}`);
       setVerificationDetails(response.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to fetch verification details');
+      setError('Failed to fetch verification details');
     } finally {
-      setLoading(false);
+      setLoadingDetails(false);
     }
   };
 
-  const handleViewRequest = async (request: PendingRequest) => {
-    setSelectedRequest(request);
-    await fetchVerificationDetails(request.request_id);
+  const handleViewDetails = async (app: Application) => {
+    setSelectedApp(app);
+    setOpenDetailsDialog(true);
+    await fetchVerificationDetails(app.request_id);
+  };
+
+  const handleOpenReview = (app: Application) => {
+    setSelectedApp(app);
     setOpenReviewDialog(true);
+    setReviewAction('approved');
+    setReviewNotes('');
   };
 
   const handleSubmitReview = async () => {
-    if (!selectedRequest) return;
+    if (!selectedApp) return;
 
-    setLoading(true);
+    setSubmitting(true);
+    setError(null);
     try {
       const formData = new FormData();
-      formData.append('action', reviewAction);
-      formData.append('comments', reviewComments);
+      formData.append('status', reviewAction);
+      if (reviewNotes) {
+        formData.append('notes', reviewNotes);
+      }
 
       await api.post(
-        `/scholarship-verification/manual-review/${selectedRequest.request_id}`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        }
+        `/scholarship-verification/admin/review/${selectedApp.request_id}`,
+        formData
       );
 
-      // Refresh list
-      await fetchPendingRequests();
+      setSuccess(`Application ${selectedApp.application_number} ${reviewAction} successfully`);
       setOpenReviewDialog(false);
-      setSelectedRequest(null);
-      setReviewComments('');
+      setSelectedApp(null);
+      setReviewNotes('');
+      
+      // Refresh the list
+      await fetchApplications();
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to submit review');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent':
+  const handleViewDocument = async (documentId: string) => {
+    try {
+      const response = await api.get(`/scholarship-verification/document/${documentId}`, {
+        responseType: 'blob'
+      });
+      
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+    } catch (err) {
+      setError('Failed to view document');
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toUpperCase()) {
+      case 'APPROVED':
+        return 'success';
+      case 'REJECTED':
         return 'error';
-      case 'high':
+      case 'UNDER_REVIEW':
         return 'warning';
-      case 'medium':
+      case 'SUBMITTED':
         return 'info';
       default:
         return 'default';
     }
   };
 
-  const renderVerificationSummary = () => {
-    if (!verificationDetails) return null;
-
-    const { verification_results, confidence } = verificationDetails;
-
-    return (
-      <Box sx={{ mt: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Verification Summary
-        </Typography>
-
-        <Alert
-          severity={confidence > 0.8 ? 'success' : confidence > 0.6 ? 'warning' : 'error'}
-          sx={{ mb: 2 }}
-        >
-          Overall Confidence Score: {(confidence * 100).toFixed(0)}%
-        </Alert>
-
-        <Grid container spacing={2}>
-          {Object.entries(verification_results || {}).map(([key, value]: [string, any]) => (
-            <Grid item xs={12} sm={6} md={4} key={key}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="subtitle2" textTransform="capitalize" gutterBottom>
-                    {key.replace('_', ' ')}
-                  </Typography>
-                  <Chip
-                    label={value.status}
-                    size="small"
-                    color={
-                      ['verified', 'valid', 'complete', 'passed'].includes(value.status)
-                        ? 'success'
-                        : ['review_required', 'review_recommended'].includes(value.status)
-                        ? 'warning'
-                        : 'error'
-                    }
-                  />
-                  <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-                    Confidence: {(value.confidence * 100).toFixed(0)}%
-                  </Typography>
-
-                  {value.issues && value.issues.length > 0 && (
-                    <Box sx={{ mt: 1 }}>
-                      <Typography variant="caption" color="error">
-                        Issues:
-                      </Typography>
-                      {value.issues.slice(0, 2).map((issue: string, idx: number) => (
-                        <Typography key={idx} variant="caption" display="block" color="error">
-                          • {issue}
-                        </Typography>
-                      ))}
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      </Box>
-    );
-  };
-
-  const renderDocumentAnalyses = () => {
-    if (!verificationDetails?.document_analyses) return null;
-
-    return (
-      <Box sx={{ mt: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Document Analyses
-        </Typography>
-
-        {verificationDetails.document_analyses.map((doc: any, index: number) => (
-          <Accordion key={index}>
-            <AccordionSummary expandIcon={<ExpandMore />}>
-              <Typography>{doc.document_name}</Typography>
-              {doc.extracted_data && (
-                <Chip
-                  label={`OCR: ${(doc.extracted_data.confidence * 100).toFixed(0)}%`}
-                  size="small"
-                  sx={{ ml: 2 }}
-                />
-              )}
-            </AccordionSummary>
-            <AccordionDetails>
-              <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
-                <Tab label="Extracted Data" />
-                <Tab label="Identity Check" />
-                <Tab label="Authenticity Check" />
-              </Tabs>
-
-              {tabValue === 0 && (
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Structured Data:
-                  </Typography>
-                  <pre style={{ fontSize: '0.85rem', overflow: 'auto', maxHeight: 300 }}>
-                    {JSON.stringify(doc.extracted_data?.structured_data, null, 2)}
-                  </pre>
-                </Box>
-              )}
-
-              {tabValue === 1 && doc.identity && (
-                <Box sx={{ mt: 2 }}>
-                  <Alert severity={doc.identity.status === 'verified' ? 'success' : 'warning'}>
-                    Status: {doc.identity.status} (Confidence:{' '}
-                    {(doc.identity.confidence * 100).toFixed(0)}%)
-                  </Alert>
-
-                  {doc.identity.matches && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2">Matches:</Typography>
-                      <List dense>
-                        {Object.entries(doc.identity.matches).map(([key, value]: [string, any]) => (
-                          <ListItem key={key}>
-                            <ListItemText
-                              primary={key}
-                              secondary={`Doc: ${value.document} | DB: ${value.database}`}
-                            />
-                            <Chip
-                              label={`${(value.confidence * 100).toFixed(0)}%`}
-                              size="small"
-                              color="success"
-                            />
-                          </ListItem>
-                        ))}
-                      </List>
-                    </Box>
-                  )}
-
-                  {doc.identity.mismatches && Object.keys(doc.identity.mismatches).length > 0 && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2">Mismatches:</Typography>
-                      <List dense>
-                        {Object.entries(doc.identity.mismatches).map(([key, value]: [string, any]) => (
-                          <ListItem key={key}>
-                            <ListItemText
-                              primary={key}
-                              secondary={`Doc: ${value.document} | DB: ${value.database}`}
-                            />
-                            <Chip
-                              label={`${(value.confidence * 100).toFixed(0)}%`}
-                              size="small"
-                              color="error"
-                            />
-                          </ListItem>
-                        ))}
-                      </List>
-                    </Box>
-                  )}
-                </Box>
-              )}
-
-              {tabValue === 2 && doc.authenticity && (
-                <Box sx={{ mt: 2 }}>
-                  <Alert severity={doc.authenticity.status === 'verified' ? 'success' : 'warning'}>
-                    Status: {doc.authenticity.status} (Confidence:{' '}
-                    {(doc.authenticity.confidence * 100).toFixed(0)}%)
-                  </Alert>
-
-                  {doc.authenticity.checks && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2">Authenticity Checks:</Typography>
-                      <Grid container spacing={1} sx={{ mt: 1 }}>
-                        {Object.entries(doc.authenticity.checks).map(([key, value]: [string, any]) => (
-                          <Grid item xs={6} key={key}>
-                            <Typography variant="caption" display="block">
-                              {key}: {typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value}
-                            </Typography>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    </Box>
-                  )}
-
-                  {doc.authenticity.issues && doc.authenticity.issues.length > 0 && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2" color="error">
-                        Issues:
-                      </Typography>
-                      {doc.authenticity.issues.map((issue: string, idx: number) => (
-                        <Typography key={idx} variant="body2" color="error">
-                          • {issue}
-                        </Typography>
-                      ))}
-                    </Box>
-                  )}
-                </Box>
-              )}
-            </AccordionDetails>
-          </Accordion>
-        ))}
-      </Box>
-    );
+  const getScoreColor = (score: number | null) => {
+    if (score === null) return 'default';
+    if (score >= 0.7) return 'success';
+    if (score >= 0.5) return 'warning';
+    return 'error';
   };
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        Scholarship Applications Review
-      </Typography>
-      <Typography variant="body1" color="text.secondary" paragraph>
-        Review and approve/reject scholarship applications flagged for manual verification
-      </Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4">
+          Scholarship Application Review
+        </Typography>
+        <Box display="flex" gap={2}>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={fetchApplications}
+            disabled={loading}
+          >
+            Refresh
+          </Button>
+        </Box>
+      </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
-      {loading && <LinearProgress sx={{ mb: 2 }} />}
+      {success && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess(null)}>
+          {success}
+        </Alert>
+      )}
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Request #</TableCell>
-              <TableCell>Title</TableCell>
-              <TableCell>Student ID</TableCell>
-              <TableCell>Priority</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Created At</TableCell>
-              <TableCell>SLA Due</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {pendingRequests.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} align="center">
-                  <Typography variant="body2" color="text.secondary">
-                    No pending requests
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              pendingRequests.map((request) => (
-                <TableRow key={request.request_id} hover>
-                  <TableCell>{request.request_number}</TableCell>
-                  <TableCell>{request.title}</TableCell>
-                  <TableCell>{request.user_id}</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={request.priority}
-                      size="small"
-                      color={getPriorityColor(request.priority)}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={request.status} size="small" color="warning" />
-                  </TableCell>
-                  <TableCell>{new Date(request.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell>
-                    {request.sla_due_date
-                      ? new Date(request.sla_due_date).toLocaleDateString()
-                      : 'N/A'}
-                  </TableCell>
-                  <TableCell>
-                    <IconButton
-                      color="primary"
-                      onClick={() => handleViewRequest(request)}
-                      size="small"
-                    >
-                      <Visibility />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* Review Dialog */}
-      <Dialog open={openReviewDialog} onClose={() => setOpenReviewDialog(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Typography variant="h6">
-              Review Request: {selectedRequest?.request_number}
-            </Typography>
-            <Chip
-              label={selectedRequest?.priority}
-              size="small"
-              color={selectedRequest ? getPriorityColor(selectedRequest.priority) : 'default'}
-            />
+      <Paper sx={{ p: 2 }}>
+        {loading ? (
+          <Box display="flex" justifyContent="center" p={4}>
+            <CircularProgress />
           </Box>
+        ) : applications.length === 0 ? (
+          <Box textAlign="center" p={4}>
+            <Typography color="text.secondary">
+              No pending applications to review
+            </Typography>
+          </Box>
+        ) : (
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Application #</TableCell>
+                  <TableCell>Applicant</TableCell>
+                  <TableCell>Course</TableCell>
+                  <TableCell>Status</TableCell>
+                  <TableCell>Documents</TableCell>
+                  <TableCell>Submitted</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {applications.map((app) => (
+                  <TableRow key={app.request_id} hover>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="medium">
+                        {app.application_number}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{app.data.full_name}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {app.data.email}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{app.data.course}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Year {app.data.year_of_study}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={app.status}
+                        size="small"
+                        color={getStatusColor(app.status)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Badge badgeContent={app.documents_count || 0} color="primary">
+                        <Description />
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption">
+                        {new Date(app.submitted_date).toLocaleDateString()}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Tooltip title="View Details">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleViewDetails(app)}
+                        >
+                          <Visibility />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Review">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => handleOpenReview(app)}
+                        >
+                          <Assessment />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
+
+      {/* Details Dialog */}
+      <Dialog
+        open={openDetailsDialog}
+        onClose={() => setOpenDetailsDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Application Details
+          {selectedApp && ` - ${selectedApp.application_number}`}
         </DialogTitle>
-        <DialogContent dividers>
-          {renderVerificationSummary()}
-          {renderDocumentAnalyses()}
+        <DialogContent>
+          {loadingDetails ? (
+            <Box display="flex" justifyContent="center" p={4}>
+              <CircularProgress />
+            </Box>
+          ) : verificationDetails && selectedApp ? (
+            <Box>
+              {/* Applicant Information */}
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Applicant Information
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="text.secondary">
+                        Full Name
+                      </Typography>
+                      <Typography variant="body2">{selectedApp.data.full_name}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="text.secondary">
+                        Email
+                      </Typography>
+                      <Typography variant="body2">{selectedApp.data.email}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="text.secondary">
+                        Phone
+                      </Typography>
+                      <Typography variant="body2">{selectedApp.data.phone}</Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="caption" color="text.secondary">
+                        Course
+                      </Typography>
+                      <Typography variant="body2">{selectedApp.data.course}</Typography>
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Typography variant="caption" color="text.secondary">
+                        Reason for Scholarship
+                      </Typography>
+                      <Typography variant="body2">{selectedApp.data.reason}</Typography>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
 
-          <Divider sx={{ my: 3 }} />
+              {/* Verification Score */}
+              {verificationDetails.overall_score !== null && (
+                <Card sx={{ mb: 2 }}>
+                  <CardContent>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Overall Verification Score
+                    </Typography>
+                    <Box display="flex" alignItems="center" gap={2}>
+                      <Box flex={1}>
+                        <LinearProgress
+                          variant="determinate"
+                          value={(verificationDetails.overall_score || 0) * 100}
+                          sx={{ height: 10, borderRadius: 1 }}
+                          color={getScoreColor(verificationDetails.overall_score)}
+                        />
+                      </Box>
+                      <Typography variant="h6">
+                        {((verificationDetails.overall_score || 0) * 100).toFixed(1)}%
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
+              )}
 
-          <Typography variant="h6" gutterBottom>
-            Manual Review Decision
-          </Typography>
-
-          <FormControl component="fieldset" sx={{ mt: 2 }}>
-            <FormLabel component="legend">Action</FormLabel>
-            <RadioGroup
-              value={reviewAction}
-              onChange={(e) => setReviewAction(e.target.value as 'approve' | 'reject')}
-            >
-              <FormControlRadio
-                value="approve"
-                control={<Radio />}
-                label={
-                  <Box display="flex" alignItems="center">
-                    <CheckCircle color="success" sx={{ mr: 1 }} />
-                    Approve Application
-                  </Box>
-                }
-              />
-              <FormControlRadio
-                value="reject"
-                control={<Radio />}
-                label={
-                  <Box display="flex" alignItems="center">
-                    <Cancel color="error" sx={{ mr: 1 }} />
-                    Reject Application
-                  </Box>
-                }
-              />
-            </RadioGroup>
-          </FormControl>
-
-          <TextField
-            label="Comments (Required)"
-            multiline
-            rows={4}
-            fullWidth
-            value={reviewComments}
-            onChange={(e) => setReviewComments(e.target.value)}
-            sx={{ mt: 3 }}
-            required
-          />
+              {/* Documents */}
+              <Typography variant="h6" gutterBottom>
+                Uploaded Documents ({verificationDetails.documents.length})
+              </Typography>
+              {verificationDetails.documents.map((doc, index) => (
+                <Card key={index} sx={{ mb: 1 }} variant="outlined">
+                  <CardContent>
+                    <Box display="flex" justifyContent="space-between" alignItems="center">
+                      <Box>
+                        <Typography variant="subtitle2">{doc.type}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {doc.filename}
+                        </Typography>
+                      </Box>
+                      <Box display="flex" gap={1} alignItems="center">
+                        <Chip
+                          label={doc.is_verified ? 'Verified' : 'Pending'}
+                          size="small"
+                          color={doc.is_verified ? 'success' : 'warning'}
+                        />
+                        <IconButton
+                          size="small"
+                          onClick={() => handleViewDocument(doc.id)}
+                        >
+                          <Visibility />
+                        </IconButton>
+                      </Box>
+                    </Box>
+                    {doc.ocr_text && (
+                      <Box mt={1} p={1} bgcolor="grey.100" borderRadius={1}>
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          OCR Extract (preview):
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+                          {doc.ocr_text.substring(0, 200)}...
+                        </Typography>
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </Box>
+          ) : (
+            <Typography>No details available</Typography>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenReviewDialog(false)}>Cancel</Button>
+          <Button onClick={() => setOpenDetailsDialog(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Review Dialog */}
+      <Dialog
+        open={openReviewDialog}
+        onClose={() => !submitting && setOpenReviewDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Review Application</DialogTitle>
+        <DialogContent>
+          {selectedApp && (
+            <Box>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Reviewing application: <strong>{selectedApp.application_number}</strong>
+                <br />
+                Applicant: <strong>{selectedApp.data.full_name}</strong>
+              </Alert>
+
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Decision</InputLabel>
+                <Select
+                  value={reviewAction}
+                  label="Decision"
+                  onChange={(e) => setReviewAction(e.target.value)}
+                >
+                  <MenuItem value="approved">Approve</MenuItem>
+                  <MenuItem value="rejected">Reject</MenuItem>
+                  <MenuItem value="pending_approval">Request More Information</MenuItem>
+                </Select>
+              </FormControl>
+
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                label="Review Notes (Optional)"
+                value={reviewNotes}
+                onChange={(e) => setReviewNotes(e.target.value)}
+                placeholder="Add any comments or reasons for your decision..."
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenReviewDialog(false)} disabled={submitting}>
+            Cancel
+          </Button>
           <Button
-            variant="contained"
             onClick={handleSubmitReview}
-            disabled={!reviewComments.trim() || loading}
-            color={reviewAction === 'approve' ? 'success' : 'error'}
+            variant="contained"
+            disabled={submitting}
+            startIcon={submitting ? <CircularProgress size={20} /> : null}
+            color={reviewAction === 'approved' ? 'success' : reviewAction === 'rejected' ? 'error' : 'primary'}
           >
-            {loading ? 'Submitting...' : `${reviewAction === 'approve' ? 'Approve' : 'Reject'}`}
+            {submitting ? 'Submitting...' : 'Submit Review'}
           </Button>
         </DialogActions>
       </Dialog>

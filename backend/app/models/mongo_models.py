@@ -8,6 +8,7 @@ from enum import Enum
 from pydantic import BaseModel, Field, field_validator
 from pydantic_core import core_schema
 from bson import ObjectId
+from app.api.v1.memo_card_api import router as memo_card_router
 
 
 class PyObjectId(str):
@@ -278,3 +279,27 @@ class VerificationAuditLog(BaseModel):
         "arbitrary_types_allowed": True,
         "json_encoders": {ObjectId: str}
     }
+
+
+# ==================== Memo Card Models ====================
+class MemoCard(BaseModel):
+    """MongoDB model for storing memo cards"""
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    user_id: str
+    title: str
+    content: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: Optional[datetime] = None
+    model_config = {
+        "populate_by_name": True,
+        "arbitrary_types_allowed": True,
+        "json_encoders": {ObjectId: str},
+        "json_schema_extra": {
+            "example": {
+                "user_id": "507f1f77bcf86cd799439011",
+                "title": "Exam Reminder",
+                "content": "Don't forget the math exam on Friday!",
+            }
+        }
+    }
+

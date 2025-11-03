@@ -10,6 +10,7 @@ import time
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.api.v1 import api_router
+from app.api.v1.memo_card_api import router as memo_card_router
 from app.services.rag_service import rag_service
 from app.services.vector_store import vector_store
 
@@ -140,6 +141,7 @@ async def root():
 
 # Include API router
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(memo_card_router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

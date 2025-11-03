@@ -75,7 +75,7 @@ const navigationItems: NavItem[] = [
       { title: 'Certificate Requests', path: '/student-services/certificates', icon: <CertificateIcon /> },
       { title: 'Bus Pass', path: '/student-services/bus-pass', icon: <BusIcon /> },
       { title: 'Memo Card', path: '/student-services/memo-card', icon: <MemoIcon /> },
-      { title: 'Request History', path: '/requests/history', icon: <HistoryIcon /> },
+      { title: 'Request History', path: '/student-services/history', icon: <HistoryIcon /> },
     ]
   },
   { 

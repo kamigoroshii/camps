@@ -120,7 +120,7 @@ export default function AdminLayout() {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: '#d32f2f', // Admin red theme
+        bgcolor: '#0891b2', // Ocean teal/cyan theme
         color: palette.white,
       }}
     >
@@ -140,7 +140,7 @@ export default function AdminLayout() {
             <Avatar
               sx={{
                 bgcolor: palette.white,
-                color: '#d32f2f',
+                color: '#0891b2',
                 width: 36,
                 height: 36,
                 fontWeight: 700,
@@ -159,7 +159,7 @@ export default function AdminLayout() {
           <Avatar
             sx={{
               bgcolor: palette.white,
-              color: '#d32f2f',
+              color: '#0891b2',
               width: 36,
               height: 36,
               fontWeight: 700,
@@ -183,7 +183,7 @@ export default function AdminLayout() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Avatar
               sx={{
-                bgcolor: '#b71c1c',
+                bgcolor: '#0e7490',
                 color: palette.white,
                 width: 48,
                 height: 48,
@@ -235,7 +235,7 @@ export default function AdminLayout() {
         >
           <Avatar
             sx={{
-              bgcolor: '#b71c1c',
+              bgcolor: '#0e7490',
               color: palette.white,
               width: 40,
               height: 40,
@@ -407,13 +407,13 @@ export default function AdminLayout() {
 
             {/* Admin Profile Menu */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#d32f2f' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#0891b2' }}>
                 Admin Portal
               </Typography>
               <IconButton onClick={handleMenu} sx={{ p: 0 }}>
                 <Avatar
                   sx={{
-                    bgcolor: '#d32f2f',
+                    bgcolor: '#0891b2',
                     width: 40,
                     height: 40,
                     fontWeight: 600,
@@ -439,8 +439,8 @@ export default function AdminLayout() {
               </MenuItem>
               <Divider />
               <MenuItem onClick={handleLogout}>
-                <LogoutIcon sx={{ mr: 2, color: '#d32f2f' }} /> 
-                <Typography sx={{ color: '#d32f2f', fontWeight: 600 }}>Logout</Typography>
+                <LogoutIcon sx={{ mr: 2, color: '#0891b2' }} /> 
+                <Typography sx={{ color: '#0891b2', fontWeight: 600 }}>Logout</Typography>
               </MenuItem>
             </Menu>
           </Toolbar>
