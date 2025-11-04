@@ -12,6 +12,8 @@ export interface MemoCard {
   expiry_date: string;
   status: string;
   document_path?: string;
+  admin_comments?: string;
+  reviewed_at?: string;
   created_at: string;
   updated_at?: string;
 }
@@ -78,5 +80,23 @@ export async function uploadMemoDocument(id: string, document: File) {
   const res = await axios.post(`${API_BASE}/api/v1/memo-cards/${id}/upload`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   });
+  return res.data;
+}
+
+// Admin endpoints
+export async function getAllMemoCards(status?: string) {
+  const params = status ? { status } : {};
+  const res = await axios.get<MemoCard[]>(`${API_BASE}/api/v1/memo-cards/admin/all`, { params });
+  return res.data;
+}
+
+export async function reviewMemoCard(id: string, status: 'approved' | 'rejected', admin_comments?: string) {
+  const formData = new FormData();
+  formData.append('status', status);
+  if (admin_comments) {
+    formData.append('admin_comments', admin_comments);
+  }
+  
+  const res = await axios.put<MemoCard>(`${API_BASE}/api/v1/memo-cards/admin/${id}/review`, formData);
   return res.data;
 }

@@ -249,8 +249,8 @@ export default function Layout() {
                 src="/assets/logo.jpg"
                 alt="Campus Logo"
                 sx={{
-                  width: 40,
-                  height: 40,
+                  width: 50,
+                  height: 50,
                   objectFit: 'contain',
                 }}
               />
@@ -285,8 +285,8 @@ export default function Layout() {
               src="/assets/logo.jpg"
               alt="Campus Logo"
               sx={{
-                width: 36,
-                height: 36,
+                width: 45,
+                height: 45,
                 objectFit: 'contain',
               }}
             />

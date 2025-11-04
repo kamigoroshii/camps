@@ -40,6 +40,8 @@ class MemoCardOut(BaseModel):
     expiry_date: str
     status: str
     document_path: Optional[str] = None
+    admin_comments: Optional[str] = None
+    reviewed_at: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None
 
@@ -105,6 +107,51 @@ async def list_memo_cards(user_id: str):
     """Get all memo cards for a user"""
     docs = memo_collection.find({"user_id": user_id}).sort("created_at", -1)
     return [MemoCardOut(**{**doc, "_id": str(doc["_id"])}) for doc in docs]
+
+@router.get("/admin/all", response_model=List[MemoCardOut])
+async def list_all_memo_cards(status: Optional[str] = None):
+    """Admin: Get all memo cards, optionally filtered by status"""
+    query = {}
+    if status:
+        query["status"] = status
+    docs = memo_collection.find(query).sort("created_at", -1)
+    return [MemoCardOut(**{**doc, "_id": str(doc["_id"])}) for doc in docs]
+
+@router.put("/admin/{memo_id}/review")
+async def review_memo_card(memo_id: str, status: str = Form(...), admin_comments: Optional[str] = Form(None)):
+    """Admin: Approve or reject a memo card request"""
+    if not ObjectId.is_valid(memo_id):
+        raise HTTPException(status_code=400, detail="Invalid memo card ID")
+    
+    if status not in ["approved", "rejected"]:
+        raise HTTPException(status_code=400, detail="Status must be 'approved' or 'rejected'")
+    
+    doc = memo_collection.find_one({"_id": ObjectId(memo_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Memo card not found")
+    
+    update_data = {
+        "status": status,
+        "admin_comments": admin_comments,
+        "reviewed_at": datetime.now().isoformat(),
+        "updated_at": datetime.now().isoformat()
+    }
+    
+    # If approved, set as active
+    if status == "approved":
+        update_data["status"] = "active"
+    
+    result = memo_collection.update_one(
+        {"_id": ObjectId(memo_id)},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Memo card not found")
+    
+    doc = memo_collection.find_one({"_id": ObjectId(memo_id)})
+    doc["_id"] = str(doc["_id"])
+    return MemoCardOut(**doc)
 
 @router.get("/{memo_id}", response_model=MemoCardOut)
 async def get_memo_card(memo_id: str):

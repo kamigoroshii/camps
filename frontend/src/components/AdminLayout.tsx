@@ -44,12 +44,14 @@ interface NavItem {
   icon: React.ReactNode
 }
 
-import { Chat as ChatIcon, VerifiedUser as VerificationIcon } from '@mui/icons-material'
+import { Chat as ChatIcon, VerifiedUser as VerificationIcon, ContactMail as MemoCardIcon, DirectionsBus as BusPassIcon } from '@mui/icons-material'
 
 const adminNavigationItems: NavItem[] = [
   { title: 'Dashboard', path: '/admin', icon: <DashboardIcon /> },
   { title: 'Manage Requests', path: '/admin/requests', icon: <RequestsIcon /> },
   { title: 'Scholarship Review', path: '/admin/scholarship-review', icon: <VerificationIcon /> },
+  { title: 'Bus Pass Review', path: '/admin/bus-pass-review', icon: <BusPassIcon /> },
+  { title: 'Memo Card Review', path: '/admin/memo-card-review', icon: <MemoCardIcon /> },
   { title: 'User Management', path: '/admin/users', icon: <UsersIcon /> },
   { title: 'Reports & Analytics', path: '/admin/reports', icon: <ReportsIcon /> },
   { title: 'System Settings', path: '/admin/settings', icon: <SettingsIcon /> },
@@ -142,8 +144,8 @@ export default function AdminLayout() {
               src="/assets/logo.jpg"
               alt="Campus Logo"
               sx={{
-                width: 40,
-                height: 40,
+                width: 50,
+                height: 50,
                 objectFit: 'contain',
               }}
             />
@@ -159,8 +161,8 @@ export default function AdminLayout() {
             src="/assets/logo.jpg"
             alt="Campus Logo"
             sx={{
-              width: 36,
-              height: 36,
+              width: 45,
+              height: 45,
               objectFit: 'contain',
             }}
           />

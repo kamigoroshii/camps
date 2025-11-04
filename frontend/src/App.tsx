@@ -23,6 +23,8 @@ import ScholarshipUnifiedPage from './pages/ScholarshipUnifiedPage';
 import MyApplicationsPage from './pages/MyApplicationsPage'
 import ScholarshipVerificationPage from './pages/ScholarshipVerificationPage'
 import AdminScholarshipReviewPage from './pages/AdminScholarshipReviewPage'
+import AdminBusPassReviewPage from './pages/AdminBusPassReviewPage'
+import AdminMemoCardReviewPage from './pages/AdminMemoCardReviewPage'
 import CamsPage from './pages/CamsPage'
 import CertificateRequestsPage from './pages/CertificateRequestsPage'
 import BusPassPage from './pages/BusPassPage'
@@ -137,6 +139,8 @@ function App() {
             <Route path="settings" element={<AdminSettingsPage />} />
             <Route path="chat" element={<AdminChatPage />} />
             <Route path="scholarship-review" element={<AdminScholarshipReviewPage />} />
+            <Route path="bus-pass-review" element={<AdminBusPassReviewPage />} />
+            <Route path="memo-card-review" element={<AdminMemoCardReviewPage />} />
           </Route>
 
           {/* 404 */}
