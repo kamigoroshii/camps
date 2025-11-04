@@ -43,9 +43,10 @@ import {
   Chat as ChatIcon,
   VerifiedUser as VerificationIcon,
 } from '@mui/icons-material'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { palette, gradients } from '../theme'
+import axios from 'axios'
 
 const DRAWER_WIDTH = 280
 const DRAWER_WIDTH_COLLAPSED = 70
@@ -102,11 +103,64 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
-  const [notificationCount] = useState(5) // Mock notification count
+  const [notificationCount, setNotificationCount] = useState(0)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
 
   // Check if user is admin
   const isAdmin = user?.role?.toLowerCase() === 'admin'
+
+  // Fetch unread notification count
+  useEffect(() => {
+    const fetchNotificationCount = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        if (!token) return
+
+        const response = await axios.get('http://localhost:8000/api/v1/notifications', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        if (response.data && Array.isArray(response.data)) {
+          const unreadCount = response.data.filter((n: any) => !n.read_at).length
+          setNotificationCount(unreadCount)
+        }
+      } catch (error) {
+        console.error('Failed to fetch notification count:', error)
+      }
+    }
+
+    // Fetch immediately
+    fetchNotificationCount()
+
+    // Poll every 30 seconds for real-time updates
+    const interval = setInterval(fetchNotificationCount, 30000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  // Also refresh count when navigating away from notifications page
+  useEffect(() => {
+    if (location.pathname !== '/notifications') {
+      const fetchNotificationCount = async () => {
+        try {
+          const token = localStorage.getItem('token')
+          if (!token) return
+
+          const response = await axios.get('http://localhost:8000/api/v1/notifications', {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+          
+          if (response.data && Array.isArray(response.data)) {
+            const unreadCount = response.data.filter((n: any) => !n.read_at).length
+            setNotificationCount(unreadCount)
+          }
+        } catch (error) {
+          console.error('Failed to fetch notification count:', error)
+        }
+      }
+      fetchNotificationCount()
+    }
+  }, [location.pathname])
 
   // Filter navigation items based on user role
   const visibleNavigationItems = navigationItems.filter(item => {
@@ -190,18 +244,16 @@ export default function Layout() {
         {!collapsed && (
           <>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Avatar
+              <Box
+                component="img"
+                src="/assets/logo.jpg"
+                alt="Campus Logo"
                 sx={{
-                  bgcolor: palette.white,
-                  color: palette.primary,
-                  width: 36,
-                  height: 36,
-                  fontWeight: 700,
-                  fontSize: '0.875rem',
+                  width: 40,
+                  height: 40,
+                  objectFit: 'contain',
                 }}
-              >
-                CP
-              </Avatar>
+              />
               <Typography variant="h6" sx={{ fontWeight: 700, color: palette.white, fontSize: '1.1rem' }}>
                 Campus Portal
               </Typography>
@@ -228,18 +280,16 @@ export default function Layout() {
         
         {collapsed && (
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-            <Avatar
+            <Box
+              component="img"
+              src="/assets/logo.jpg"
+              alt="Campus Logo"
               sx={{
-                bgcolor: palette.white,
-                color: palette.primary,
                 width: 36,
                 height: 36,
-                fontWeight: 700,
-                fontSize: '0.875rem',
+                objectFit: 'contain',
               }}
-            >
-              CP
-            </Avatar>
+            />
             {/* Collapse Button - Desktop Only */}
             {!isMobile && (
               <IconButton

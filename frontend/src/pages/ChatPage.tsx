@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 import {
   Box,
   Container,
@@ -244,11 +245,66 @@ export default function ChatPage() {
                       color: message.role === 'user' ? palette.white : palette.textPrimary,
                       borderRadius: 2,
                       boxShadow: 1,
+                      '& h1, & h2, & h3, & h4, & h5, & h6': {
+                        marginTop: '16px',
+                        marginBottom: '8px',
+                        fontWeight: 600,
+                      },
+                      '& h2': {
+                        fontSize: '1.5rem',
+                        borderBottom: '2px solid #e0e0e0',
+                        paddingBottom: '4px',
+                      },
+                      '& h3': {
+                        fontSize: '1.25rem',
+                      },
+                      '& p': {
+                        marginBottom: '8px',
+                      },
+                      '& ul, & ol': {
+                        marginLeft: '20px',
+                        marginBottom: '12px',
+                      },
+                      '& blockquote': {
+                        borderLeft: '4px solid #0891b2',
+                        paddingLeft: '12px',
+                        marginLeft: '0',
+                        fontStyle: 'italic',
+                        backgroundColor: '#f5f5f5',
+                        padding: '8px 12px',
+                        borderRadius: '4px',
+                      },
+                      '& code': {
+                        backgroundColor: '#f5f5f5',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontFamily: 'monospace',
+                      },
+                      '& pre': {
+                        backgroundColor: '#f5f5f5',
+                        padding: '12px',
+                        borderRadius: '4px',
+                        overflow: 'auto',
+                      },
                     }}
                   >
-                    <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
-                      {message.content}
-                    </Typography>
+                    {message.role === 'user' ? (
+                      <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                        {message.content}
+                      </Typography>
+                    ) : (
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ children }) => <Typography variant="h4" component="h1" gutterBottom>{children}</Typography>,
+                          h2: ({ children }) => <Typography variant="h5" component="h2" gutterBottom>{children}</Typography>,
+                          h3: ({ children }) => <Typography variant="h6" component="h3" gutterBottom>{children}</Typography>,
+                          p: ({ children }) => <Typography variant="body1" paragraph>{children}</Typography>,
+                          li: ({ children }) => <Typography component="li" variant="body2">{children}</Typography>,
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
+                    )}
                   </Box>
                   {message.sources && message.sources.length > 0 && (
                     <Box sx={{ mt: 1 }}>

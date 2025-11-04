@@ -169,7 +169,7 @@ async def upload_document(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Upload error: {e}")
+        logger.error(f"Upload error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
@@ -224,8 +224,13 @@ async def list_documents(
         }
         
     except Exception as e:
-        logger.error(f"Document list error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve documents")
+        logger.error(f"Document list error: {e}", exc_info=True)
+        # Return empty list instead of crashing
+        return {
+            "documents": [],
+            "total_documents": 0,
+            "total_chunks": 0
+        }
 
 
 @router.delete("/documents/{filename}", tags=["RAG"])

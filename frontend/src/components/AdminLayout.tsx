@@ -137,37 +137,33 @@ export default function AdminLayout() {
       >
         {!collapsed && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Avatar
+            <Box
+              component="img"
+              src="/assets/logo.jpg"
+              alt="Campus Logo"
               sx={{
-                bgcolor: palette.white,
-                color: '#0891b2',
-                width: 36,
-                height: 36,
-                fontWeight: 700,
-                fontSize: '0.875rem',
+                width: 40,
+                height: 40,
+                objectFit: 'contain',
               }}
-            >
-              <AdminIcon />
-            </Avatar>
-            <Typography variant="h6" sx={{ fontWeight: 700, color: palette.white, fontSize: '1.1rem' }}>
+            />
+            <Typography variant="h6" sx={{ fontWeight: 700, color: palette.white, fontSize: '1.15rem' }}>
               Admin Panel
             </Typography>
           </Box>
         )}
         
         {collapsed && (
-          <Avatar
+          <Box
+            component="img"
+            src="/assets/logo.jpg"
+            alt="Campus Logo"
             sx={{
-              bgcolor: palette.white,
-              color: '#0891b2',
               width: 36,
               height: 36,
-              fontWeight: 700,
-              fontSize: '0.875rem',
+              objectFit: 'contain',
             }}
-          >
-            <AdminIcon />
-          </Avatar>
+          />
         )}
       </Box>
 
@@ -202,6 +198,7 @@ export default function AdminLayout() {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
+                  fontSize: '0.95rem',
                 }}
               >
                 {user?.full_name || 'Administrator'}
@@ -214,6 +211,7 @@ export default function AdminLayout() {
                   fontWeight: 600,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
+                  fontSize: '0.75rem',
                 }}
               >
                 {user?.role || 'Admin'}
@@ -285,7 +283,7 @@ export default function AdminLayout() {
                       primary={item.title}
                       primaryTypographyProps={{
                         fontWeight: active ? 700 : 500,
-                        fontSize: '0.95rem',
+                        fontSize: '1rem',
                       }}
                     />
                   )}

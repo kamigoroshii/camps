@@ -56,24 +56,36 @@ class ContextualRAGService:
         if GEMINI_AVAILABLE and settings.GEMINI_API_KEY:
             try:
                 genai.configure(api_key=settings.GEMINI_API_KEY)
+                
+                # Prefer the model from settings first, then fallback
+                preferred_models = [settings.GEMINI_MODEL] if hasattr(settings, 'GEMINI_MODEL') and settings.GEMINI_MODEL else []
+                fallback_models = ["gemini-1.5-flash", "gemini-2.0-flash-exp", "gemini-pro", "gemini-1.0-pro"]
+                
+                # Combine lists without duplicates
+                all_models = preferred_models + [m for m in fallback_models if m not in preferred_models]
+                
                 # Try different Gemini models in order of preference
-                for model_name in ["gemini-1.5-flash", "gemini-pro", "gemini-1.0-pro"]:
+                for model_name in all_models:
                     try:
                         self.gemini_model = genai.GenerativeModel(model_name)
                         # Test the model with a simple request
                         test_response = self.gemini_model.generate_content("Hello")
                         if test_response and hasattr(test_response, 'text'):
-                            logger.info(f"Successfully initialized Gemini model: {model_name}")
+                            logger.info(f"✅ Successfully initialized Gemini model: {model_name}")
                             ai_model_available = True
                             break
                     except Exception as e:
-                        logger.warning(f"Failed to initialize {model_name}: {e}")
+                        error_msg = str(e)
+                        if "429" in error_msg or "RATE_LIMIT_EXCEEDED" in error_msg:
+                            logger.warning(f"⚠️ {model_name} quota exceeded, trying next model...")
+                        else:
+                            logger.warning(f"Failed to initialize {model_name}: {e}")
                         continue
             except Exception as e:
                 logger.warning(f"Gemini initialization failed: {e}")
         
         if not ai_model_available:
-            logger.warning("No AI model available - using enhanced fallback responses")
+            logger.warning("⚠️ No AI model available - using enhanced fallback responses (this is normal if quota is exceeded)")
     
     async def process_query_with_context(
         self,
@@ -731,7 +743,12 @@ I apologize, but I encountered an error while processing your question. Please t
                 raise Exception("No valid response from AI model")
                 
         except Exception as e:
-            logger.warning(f"AI generation failed: {e}")
+            error_msg = str(e)
+            # Check for quota errors
+            if "429" in error_msg or "RATE_LIMIT_EXCEEDED" in error_msg or "Quota exceeded" in error_msg:
+                logger.warning("⚠️ Gemini API quota exceeded - using enhanced fallback response")
+            else:
+                logger.warning(f"AI generation failed: {e}")
             raise
     
     def _update_conversation_memory(self, context_key: str, query: str, response: str):

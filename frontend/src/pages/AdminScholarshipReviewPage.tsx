@@ -109,7 +109,11 @@ const AdminScholarshipReviewPage: React.FC = () => {
       const response = await api.get('/scholarship-verification/admin/pending');
       setApplications(response.data.applications || []);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to fetch applications');
+      const errorDetail = err.response?.data?.detail;
+      const errorMessage = typeof errorDetail === 'string' 
+        ? errorDetail 
+        : errorDetail?.msg || 'Failed to fetch applications';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -121,7 +125,11 @@ const AdminScholarshipReviewPage: React.FC = () => {
       const response = await api.get(`/scholarship-verification/verification-details/${requestId}`);
       setVerificationDetails(response.data);
     } catch (err: any) {
-      setError('Failed to fetch verification details');
+      const errorDetail = err.response?.data?.detail;
+      const errorMessage = typeof errorDetail === 'string' 
+        ? errorDetail 
+        : errorDetail?.msg || 'Failed to fetch verification details';
+      setError(errorMessage);
     } finally {
       setLoadingDetails(false);
     }
@@ -154,7 +162,12 @@ const AdminScholarshipReviewPage: React.FC = () => {
 
       await api.post(
         `/scholarship-verification/admin/review/${selectedApp.request_id}`,
-        formData
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
       );
 
       setSuccess(`Application ${selectedApp.application_number} ${reviewAction} successfully`);
@@ -165,7 +178,11 @@ const AdminScholarshipReviewPage: React.FC = () => {
       // Refresh the list
       await fetchApplications();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to submit review');
+      const errorDetail = err.response?.data?.detail;
+      const errorMessage = typeof errorDetail === 'string' 
+        ? errorDetail 
+        : errorDetail?.msg || JSON.stringify(errorDetail) || 'Failed to submit review';
+      setError(errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -181,8 +198,12 @@ const AdminScholarshipReviewPage: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       window.open(url, '_blank');
       setTimeout(() => window.URL.revokeObjectURL(url), 100);
-    } catch (err) {
-      setError('Failed to view document');
+    } catch (err: any) {
+      const errorDetail = err.response?.data?.detail;
+      const errorMessage = typeof errorDetail === 'string' 
+        ? errorDetail 
+        : 'Failed to view document';
+      setError(errorMessage);
     }
   };
 

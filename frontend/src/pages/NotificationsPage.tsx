@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Box,
   Typography,
@@ -15,7 +15,9 @@ import {
   Tab,
   Badge,
   Alert,
+  CircularProgress,
 } from '@mui/material'
+import api from '../services/api'
 import {
   Notifications as NotificationsIcon,
   CheckCircle as CheckCircleIcon,
@@ -160,19 +162,78 @@ const NOTIFICATION_DATA: Notification[] = [
 ]
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>(NOTIFICATION_DATA)
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const [activeTab, setActiveTab] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const unreadCount = notifications.filter(n => !n.read).length
 
-  const handleMarkAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
-    )
+  // Fetch notifications from API
+  useEffect(() => {
+    fetchNotifications()
+    // Set up polling for real-time updates every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const fetchNotifications = async () => {
+    try {
+      const response = await api.get('/notifications')
+      const apiNotifications = response.data.map((notif: any) => ({
+        id: notif.id.toString(),
+        type: getNotificationType(notif.title),
+        category: 'request',
+        title: notif.title,
+        message: notif.message,
+        date: notif.sent_at,
+        read: notif.is_read,
+        actionUrl: notif.request_id ? `/scholarship` : undefined,
+      }))
+      setNotifications(apiNotifications)
+      setLoading(false)
+      setError(null)
+    } catch (err: any) {
+      console.error('Failed to fetch notifications:', err)
+      if (err.response?.status === 401) {
+        setError('Please log in to view notifications')
+      } else {
+        setError('Failed to load notifications')
+      }
+      setLoading(false)
+      setNotifications([])
+    }
   }
 
-  const handleMarkAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+  const getNotificationType = (title: string): Notification['type'] => {
+    if (title.includes('Approved') || title.includes('🎉')) return 'success'
+    if (title.includes('Rejected') || title.includes('Required')) return 'warning'
+    if (title.includes('Error')) return 'error'
+    return 'info'
+  }
+
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      await api.put(`/notifications/${id}/read`)
+      setNotifications(prev =>
+        prev.map(n => (n.id === id ? { ...n, read: true } : n))
+      )
+    } catch (err) {
+      console.error('Failed to mark as read:', err)
+    }
+  }
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await Promise.all(
+        notifications
+          .filter(n => !n.read)
+          .map(n => api.put(`/notifications/${n.id}/read`))
+      )
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    } catch (err) {
+      console.error('Failed to mark all as read:', err)
+    }
   }
 
   const handleDelete = (id: string) => {
@@ -238,6 +299,33 @@ export default function NotificationsPage() {
   }
 
   const filteredNotifications = getFilteredNotifications()
+
+  if (loading) {
+    return (
+      <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  if (error) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert 
+          severity={error.includes('log in') ? 'warning' : 'error'}
+          action={
+            error.includes('log in') ? (
+              <Button color="inherit" size="small" href="/login">
+                Login
+              </Button>
+            ) : undefined
+          }
+        >
+          {error}
+        </Alert>
+      </Box>
+    )
+  }
 
   return (
     <Box sx={{ p: 3 }}>

@@ -705,10 +705,26 @@ export default function ScholarshipUnifiedPage() {
                         </Box>
                         <Box display="flex" flexDirection="column" gap={1} alignItems="flex-end">
                           <Chip
-                            label={app.status}
-                            color={app.status === 'COMPLETED' ? 'success' : 'warning'}
+                            label={app.status === 'approved' ? 'APPROVED ✓' : app.status === 'rejected' ? 'REJECTED' : app.status === 'pending_approval' ? 'MORE INFO NEEDED' : app.status}
+                            color={app.status === 'approved' ? 'success' : app.status === 'rejected' ? 'error' : app.status === 'pending_approval' ? 'warning' : 'info'}
                             size="small"
+                            sx={{ fontWeight: 'bold' }}
                           />
+                          {app.status === 'approved' && (
+                            <Typography variant="caption" color="success.main" fontWeight="bold">
+                              🎉 Congratulations! Your scholarship has been approved!
+                            </Typography>
+                          )}
+                          {app.status === 'rejected' && (
+                            <Typography variant="caption" color="error.main">
+                              Please review the feedback and resubmit if needed
+                            </Typography>
+                          )}
+                          {app.status === 'pending_approval' && (
+                            <Typography variant="caption" color="warning.main">
+                              Additional information required from you
+                            </Typography>
+                          )}
                           <Box display="flex" gap={1} flexWrap="wrap">
                             <Button
                               variant="outlined"
