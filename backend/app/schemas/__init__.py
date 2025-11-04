@@ -173,13 +173,13 @@ class WorkflowLogResponse(BaseModel):
 
 # Notification Schemas
 class NotificationResponse(BaseModel):
-    id: int
-    user_id: int
+    id: str
+    user_id: str
     title: str
     message: str
     notification_type: str
     is_read: bool
-    request_id: Optional[int] = None
+    request_id: Optional[str] = None
     sent_at: datetime
     read_at: Optional[datetime] = None
     

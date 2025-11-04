@@ -12,11 +12,26 @@ from app.schemas import NotificationResponse, MessageResponse
 router = APIRouter()
 
 
-async def get_or_create_sql_user(mongo_user_id: str, mongo_user_data: dict, db: AsyncSession) -> int:
+async def get_or_create_sql_user(mongo_user_id: str, mongo_user_data: dict, db: AsyncSession) -> str:
     """Get or create SQL user from MongoDB user data"""
-    # Try to find existing user by email
+    import uuid
+    
+    # Try to find existing user by mongo_user_id or username first
+    username = mongo_user_data.get("username") or mongo_user_data.get("sub")
+    email = mongo_user_data.get("email") or f"{username}@local.db"  # Fallback email
+    
+    # Try to find by username first
     result = await db.execute(
-        select(User).where(User.email == mongo_user_data.get("email"))
+        select(User).where(User.username == username)
+    )
+    sql_user = result.scalar_one_or_none()
+    
+    if sql_user:
+        return sql_user.id
+    
+    # Try to find by email
+    result = await db.execute(
+        select(User).where(User.email == email)
     )
     sql_user = result.scalar_one_or_none()
     
@@ -32,9 +47,10 @@ async def get_or_create_sql_user(mongo_user_id: str, mongo_user_data: dict, db: 
     }
     
     sql_user = User(
-        email=mongo_user_data.get("email"),
-        username=mongo_user_data.get("username", mongo_user_data.get("email")),
-        full_name=mongo_user_data.get("full_name", ""),
+        id=str(uuid.uuid4()),
+        email=email,
+        username=username,
+        full_name=mongo_user_data.get("full_name", username),
         role=role_map.get(mongo_user_data.get("role"), UserRole.STUDENT),
         status=UserStatus.ACTIVE,
         is_verified=True
@@ -73,7 +89,7 @@ async def list_notifications(
 
 @router.put("/{notification_id}/read", response_model=MessageResponse)
 async def mark_notification_read(
-    notification_id: int,
+    notification_id: str,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):

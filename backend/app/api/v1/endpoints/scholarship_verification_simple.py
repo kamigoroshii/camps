@@ -104,7 +104,8 @@ async def submit_application(
         try:
             from app.services.notification_service import notification_service
             
-            user_id = int(current_user.get("sub")) if isinstance(current_user.get("sub"), str) else current_user.get("sub")
+            # Use the SQL user_id from the service_request (already stored as UUID string)
+            user_id = service_request.user_id
             
             await notification_service.send_scholarship_status_notification(
                 db=db,
@@ -115,7 +116,7 @@ async def submit_application(
             )
             
         except Exception as notif_error:
-            logger.error(f"Failed to send submission notification: {notif_error}")
+            logger.error(f"Failed to send submission notification: {notif_error}", exc_info=True)
         
         return ApplicationResponse(
             success=True,
@@ -266,7 +267,8 @@ async def upload_document(
         try:
             from app.services.notification_service import notification_service
             
-            user_id = int(service_request.user_id) if isinstance(service_request.user_id, str) else service_request.user_id
+            # user_id is already a string UUID
+            user_id = service_request.user_id
             
             additional_info = {
                 'document_name': document_type
@@ -281,7 +283,7 @@ async def upload_document(
             )
             
         except Exception as notif_error:
-            logger.error(f"Failed to send document upload notification: {notif_error}")
+            logger.error(f"Failed to send document upload notification: {notif_error}", exc_info=True)
         
         verification_status = "verified" if document.is_verified else "pending_review"
         
@@ -636,8 +638,8 @@ async def update_application_status(
         try:
             from app.services.notification_service import notification_service
             
-            # Get user_id as integer
-            user_id = int(service_request.user_id) if isinstance(service_request.user_id, str) else service_request.user_id
+            # user_id is already a string UUID
+            user_id = service_request.user_id
             
             # Prepare additional info
             additional_info = {}
@@ -657,7 +659,7 @@ async def update_application_status(
             
         except Exception as notif_error:
             # Log error but don't fail the request
-            logger.error(f"Failed to send notification: {notif_error}")
+            logger.error(f"Failed to send notification: {notif_error}", exc_info=True)
         
         return {
             "success": True,

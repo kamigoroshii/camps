@@ -73,8 +73,10 @@ class NotificationService:
                     )
             
             # Create notification record
+            import uuid
             notification = Notification(
-                user_id=user_id,
+                id=str(uuid.uuid4()),
+                user_id=str(user_id),
                 title=notification_data["title"],
                 message=notification_data["message"],
                 notification_type="in_app",
@@ -83,6 +85,7 @@ class NotificationService:
             
             db.add(notification)
             await db.commit()
+            await db.refresh(notification)
             
             logger.info(f"Notification sent to user {user_id} for status change: {status_change}")
             return True
@@ -126,7 +129,8 @@ class NotificationService:
             
             # Create notification record
             notification = Notification(
-                user_id=admin_user_id,
+                id=str(uuid.uuid4()),
+                user_id=str(admin_user_id),
                 title=notification_data["title"],
                 message=notification_data["message"],
                 notification_type="in_app",
@@ -135,6 +139,7 @@ class NotificationService:
             
             db.add(notification)
             await db.commit()
+            await db.refresh(notification)
             
             logger.info(f"Admin notification sent to user {admin_user_id} for type: {notification_type}")
             return True
